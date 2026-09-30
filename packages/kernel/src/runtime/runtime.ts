@@ -19,11 +19,16 @@ import {
   EventBus
 } from '../event/index.js';
 
+import {
+  PluginContextFactory
+} from '../context/index.js';
+
 export interface PluginRuntimeOptions {
   lifecycle: PluginLifecycleManager;
   capabilities: CapabilityRegistry;
   permissions: PermissionRegistry;
   events: EventBus;
+  context: PluginContextFactory;
 }
 
 export class PluginRuntime {
@@ -31,17 +36,16 @@ export class PluginRuntime {
   private readonly capabilities: CapabilityRegistry;
   private readonly permissions: PermissionRegistry;
   private readonly events: EventBus;
+  private readonly context: PluginContextFactory;
 
   constructor(options: PluginRuntimeOptions) {
     this.lifecycle = options.lifecycle;
     this.capabilities = options.capabilities;
     this.permissions = options.permissions;
     this.events = options.events;
+    this.context = options.context;
   }
 
-  /**
-   * Register a plugin with the runtime.
-   */
   register(
     info: PluginInfo,
     implementation: Plugin
@@ -49,9 +53,6 @@ export class PluginRuntime {
     this.lifecycle.register(info, implementation);
   }
 
-  /**
-   * Install a plugin.
-   */
   async install(pluginId: string): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
@@ -80,9 +81,6 @@ export class PluginRuntime {
     }
   }
 
-  /**
-   * Enable a plugin.
-   */
   async enable(pluginId: string): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
@@ -103,9 +101,6 @@ export class PluginRuntime {
     });
   }
 
-  /**
-   * Activate a plugin.
-   */
   async activate(pluginId: string): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
@@ -119,12 +114,21 @@ export class PluginRuntime {
       );
     }
 
-    await lifecycle.implementation.activate({
-      plugin: lifecycle.plugin
-    });
+    const context = this.context.create(
+      lifecycle.plugin
+    );
 
-    await this.lifecycle.transition(pluginId, 'activated');
-    await this.lifecycle.transition(pluginId, 'running');
+    await lifecycle.implementation.activate(context);
+
+    await this.lifecycle.transition(
+      pluginId,
+      'activated'
+    );
+
+    await this.lifecycle.transition(
+      pluginId,
+      'running'
+    );
 
     await this.events.emit('plugin.activated', {
       pluginId
@@ -135,14 +139,15 @@ export class PluginRuntime {
     });
   }
 
-  /**
-   * Deactivate a running plugin.
-   */
-  async deactivate(pluginId: string): Promise<void> {
+  async deactivate(
+    pluginId: string
+  ): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
     if (!lifecycle?.implementation) {
-      throw new Error(`Plugin implementation not found: ${pluginId}`);
+      throw new Error(
+        `Plugin implementation not found: ${pluginId}`
+      );
     }
 
     if (
@@ -156,21 +161,28 @@ export class PluginRuntime {
 
     this.permissions.revokeAll(pluginId);
 
-    await this.lifecycle.transition(pluginId, 'deactivated');
+    await this.lifecycle.transition(
+      pluginId,
+      'deactivated'
+    );
 
-    await this.events.emit('plugin.deactivated', {
-      pluginId
-    });
+    await this.events.emit(
+      'plugin.deactivated',
+      {
+        pluginId
+      }
+    );
   }
 
-  /**
-   * Disable a plugin.
-   */
-  async disable(pluginId: string): Promise<void> {
+  async disable(
+    pluginId: string
+  ): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
     if (!lifecycle) {
-      throw new Error(`Plugin not registered: ${pluginId}`);
+      throw new Error(
+        `Plugin not registered: ${pluginId}`
+      );
     }
 
     if (
@@ -181,26 +193,36 @@ export class PluginRuntime {
     }
 
     if (lifecycle.status === 'deactivated') {
-      await this.lifecycle.transition(pluginId, 'disabled');
+      await this.lifecycle.transition(
+        pluginId,
+        'disabled'
+      );
     }
 
     if (lifecycle.status === 'enabled') {
-      await this.lifecycle.transition(pluginId, 'disabled');
+      await this.lifecycle.transition(
+        pluginId,
+        'disabled'
+      );
     }
 
-    await this.events.emit('plugin.disabled', {
-      pluginId
-    });
+    await this.events.emit(
+      'plugin.disabled',
+      {
+        pluginId
+      }
+    );
   }
 
-  /**
-   * Uninstall a plugin.
-   */
-  async uninstall(pluginId: string): Promise<void> {
+  async uninstall(
+    pluginId: string
+  ): Promise<void> {
     const lifecycle = this.lifecycle.get(pluginId);
 
     if (!lifecycle?.implementation) {
-      throw new Error(`Plugin implementation not found: ${pluginId}`);
+      throw new Error(
+        `Plugin implementation not found: ${pluginId}`
+      );
     }
 
     if (
@@ -211,7 +233,10 @@ export class PluginRuntime {
     }
 
     if (lifecycle.status === 'enabled') {
-      await this.lifecycle.transition(pluginId, 'disabled');
+      await this.lifecycle.transition(
+        pluginId,
+        'disabled'
+      );
     }
 
     if (
@@ -219,7 +244,8 @@ export class PluginRuntime {
       lifecycle.status !== 'installed'
     ) {
       throw new Error(
-        `Plugin cannot be uninstalled from state ${lifecycle.status}: ${pluginId}`
+        `Plugin cannot be uninstalled from state ` +
+        `${lifecycle.status}: ${pluginId}`
       );
     }
 
@@ -227,18 +253,30 @@ export class PluginRuntime {
 
     this.permissions.revokeAll(pluginId);
 
-    const capabilities = this.capabilities.list()
-      .filter((capability) => capability.providerId === pluginId);
+    const capabilities = this.capabilities
+      .list()
+      .filter(
+        (capability) =>
+          capability.providerId === pluginId
+      );
 
     for (const capability of capabilities) {
-      this.capabilities.unregister(capability.id);
+      this.capabilities.unregister(
+        capability.id
+      );
     }
 
-    await this.lifecycle.transition(pluginId, 'uninstalled');
+    await this.lifecycle.transition(
+      pluginId,
+      'uninstalled'
+    );
 
-    await this.events.emit('plugin.uninstalled', {
-      pluginId
-    });
+    await this.events.emit(
+      'plugin.uninstalled',
+      {
+        pluginId
+      }
+    );
 
     this.lifecycle.remove(pluginId);
   }
