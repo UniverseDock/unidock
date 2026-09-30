@@ -6,5 +6,12 @@
   "packageManager": "pnpm@12.8.1",
   "engines": {
     "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "typecheck": "pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
   }
 }

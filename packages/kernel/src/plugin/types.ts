@@ -1,4 +1,4 @@
-import type { PluginContext } from '../context/index.js';
+import type { PluginContext } from '../context/types.js';
 
 export type PluginType =
   | 'source'
@@ -54,10 +54,7 @@ export interface InstallContext {
 
 export interface Plugin {
   install(context: InstallContext): Promise<void>;
-
   activate(context: PluginContext): Promise<void>;
-
   deactivate(): Promise<void>;
-
   uninstall(): Promise<void>;
 }

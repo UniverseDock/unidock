@@ -2,8 +2,12 @@
   "name": "@unidock/kernel",
   "version": "0.1.0",
   "private": true,
-  "description": "UniDock core runtime, plugin system, capabilities, permissions and events.",
+  "description": "UniDock Kernel.",
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
 }

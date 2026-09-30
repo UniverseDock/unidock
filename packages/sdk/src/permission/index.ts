@@ -1,5 +1,3 @@
 export type {
-  Permission,
-  PermissionGrant,
-  PermissionRequest
+  Permission
 } from '@unidock/kernel';

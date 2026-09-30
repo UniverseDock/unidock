@@ -1,14 +1,14 @@
-export { PluginContextFactory } from './factory.js';
-
 export type {
   ContentAPI,
   NetworkAPI,
   NotificationAPI,
   PlayerAPI,
   PluginContext,
+  PluginContextDependencies,
   ReaderAPI,
   SettingsAPI,
   StorageAPI,
-  UIAPI,
-  PluginContextDependencies
+  UIAPI
 } from './types.js';
+
+export { PluginContextFactory } from './factory.js';

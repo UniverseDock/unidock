@@ -1,0 +1,17 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/kernel"
+    },
+    {
+      "path": "./packages/content"
+    },
+    {
+      "path": "./packages/storage"
+    },
+    {
+      "path": "./packages/sdk"
+    }
+  ]
+}
