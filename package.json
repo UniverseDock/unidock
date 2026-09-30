@@ -1,0 +1,10 @@
+{
+  "name": "unidock",
+  "private": true,
+  "version": "0.1.0",
+  "description": "UniDock — Your Dock to the Universe.",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22"
+  }
+}

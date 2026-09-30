@@ -1,0 +1,27 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+.cache/
+.vite/
+.turbo/
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+.idea/
+.vscode/
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Local data
+data/
+storage/
+
+# OS
+Thumbs.db
