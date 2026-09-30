@@ -1,8 +1,4 @@
-/**
- * UniDock Plugin
- *
- * Plugin is the fundamental extension unit of UniDock.
- */
+import type { PluginContext } from '../context/index.js';
 
 export type PluginType =
   | 'source'
@@ -32,59 +28,15 @@ export type PluginStatus =
   | 'uninstalled';
 
 export interface PluginManifest {
-  /**
-   * Globally unique plugin identifier.
-   *
-   * Example:
-   * provider.iptv
-   * source.rss
-   * renderer.epub
-   */
   id: string;
-
-  /**
-   * Human-readable plugin name.
-   */
   name: string;
-
-  /**
-   * Semantic version.
-   */
   version: string;
-
-  /**
-   * UniDock Plugin API version.
-   */
   apiVersion: string;
-
-  /**
-   * Plugin category.
-   */
   type: PluginType;
-
-  /**
-   * Plugin entry point.
-   */
   entry: string;
-
-  /**
-   * Requested permissions.
-   */
   permissions: string[];
-
-  /**
-   * Capabilities provided by this plugin.
-   */
   capabilities: string[];
-
-  /**
-   * Optional plugin dependencies.
-   */
   dependencies?: Record<string, string>;
-
-  /**
-   * Optional metadata.
-   */
   description?: string;
   author?: string;
   homepage?: string;
@@ -100,28 +52,12 @@ export interface InstallContext {
   plugin: PluginInfo;
 }
 
-export interface PluginContext {
-  plugin: PluginInfo;
-}
-
 export interface Plugin {
-  /**
-   * Called when the plugin is installed.
-   */
   install(context: InstallContext): Promise<void>;
 
-  /**
-   * Called when the plugin becomes active.
-   */
   activate(context: PluginContext): Promise<void>;
 
-  /**
-   * Called before the plugin is disabled.
-   */
   deactivate(): Promise<void>;
 
-  /**
-   * Called when the plugin is removed.
-   */
   uninstall(): Promise<void>;
 }
