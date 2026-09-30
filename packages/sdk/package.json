@@ -1,0 +1,14 @@
+{
+  "name": "@unidock/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UniDock Plugin SDK.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@unidock/content": "workspace:*",
+    "@unidock/kernel": "workspace:*",
+    "@unidock/storage": "workspace:*"
+  }
+}
