@@ -1,0 +1,9 @@
+{
+  "name": "@unidock/kernel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UniDock core runtime, plugin system, capabilities, permissions and events.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}
