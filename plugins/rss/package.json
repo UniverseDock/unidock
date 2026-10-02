@@ -9,9 +9,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && node --test test/parser.test.mjs"
+    "test": "pnpm run build && node --test test/parser.test.mjs test/importer.test.mjs"
   },
   "dependencies": {
+    "@unidock/content": "workspace:*",
     "fast-xml-parser": "^5.3.4"
   }
 }
