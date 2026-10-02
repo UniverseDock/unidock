@@ -12,6 +12,7 @@ import { IndexedDBAdapter } from '@unidock/storage';
 const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
 const feedSubmit = getElement<HTMLButtonElement>('feed-submit');
+const feedRefresh = getElement<HTMLButtonElement>('feed-refresh');
 const feedImportStatus = getElement<HTMLElement>('feed-import-status');
 const feedError = getElement<HTMLElement>('feed-error');
 const form = getElement<HTMLFormElement>('content-form');
@@ -64,6 +65,10 @@ async function start(): Promise<void> {
 feedForm.addEventListener('submit', (event) => {
   event.preventDefault();
   void importFeed();
+});
+
+feedRefresh.addEventListener('click', () => {
+  void importFeed(true);
 });
 
 form.addEventListener('submit', (event) => {
@@ -151,23 +156,25 @@ async function saveContent(): Promise<void> {
   }
 }
 
-async function importFeed(): Promise<void> {
+async function importFeed(refresh = false): Promise<void> {
   if (!feedImportService) return;
   hideError(feedError);
   feedSubmit.disabled = true;
-  feedImportStatus.textContent = '正在抓取和导入…';
+  feedRefresh.disabled = true;
+  feedImportStatus.textContent = refresh ? '正在重新抓取…' : '正在抓取和导入…';
 
   try {
     const result = await feedImportService.importFromUrl({
       feedUrl: feedUrlInput.value.trim()
     });
-    feedImportStatus.textContent = `已导入 ${result.contents.length} 篇：${result.feed.title}`;
+    feedImportStatus.textContent = `${refresh ? '已重新抓取' : '已导入'} ${result.contents.length} 篇：${result.feed.title}`;
     await renderContents();
   } catch (error) {
     feedImportStatus.textContent = '导入失败';
     showError(feedError, toErrorMessage(error));
   } finally {
     feedSubmit.disabled = false;
+    feedRefresh.disabled = false;
   }
 }
 

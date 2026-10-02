@@ -38,7 +38,10 @@
             Feed URL
             <input id="feed-url" name="feedUrl" type="url" required placeholder="https://example.org/feed.xml">
           </label>
-          <button id="feed-submit" type="submit">导入 Feed</button>
+          <div class="form-actions">
+            <button id="feed-submit" type="submit">导入 Feed</button>
+            <button id="feed-refresh" class="secondary-button" type="button">重新抓取</button>
+          </div>
         </form>
         <p id="feed-error" class="error" role="alert" hidden></p>
       </section>
