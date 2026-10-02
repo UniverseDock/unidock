@@ -44,6 +44,10 @@ const toggleRead = getElement<HTMLButtonElement>('toggle-read');
 const toggleStarred = getElement<HTMLButtonElement>('toggle-starred');
 const backToList = getElement<HTMLButtonElement>('back-to-list');
 
+if ('serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('./sw.js');
+}
+
 const adapter = new IndexedDBAdapter({ databaseName: 'unidock' });
 let repository: StorageContentRepository | undefined;
 let documentRepository: StorageDocumentRepository | undefined;

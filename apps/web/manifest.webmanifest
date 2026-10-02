@@ -1,0 +1,11 @@
+{
+  "name": "UniDock",
+  "short_name": "UniDock",
+  "description": "本地优先内容工作台",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "display": "standalone",
+  "theme_color": "#315efb",
+  "background_color": "#f4f6f8",
+  "icons": []
+}
