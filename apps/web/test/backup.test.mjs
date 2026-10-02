@@ -63,4 +63,8 @@ test('rejects duplicate IDs and broken cross-record references', () => {
   const broken = createBackupPayload([content], [document], [state], [feed]);
   broken.documents[0].contentId = 'content:missing';
   assert.throws(() => parseBackup(JSON.stringify(broken)), /包含无效数据/);
+
+  const brokenDocumentId = createBackupPayload([content], [document], [state], [feed]);
+  brokenDocumentId.documents[0].id = 'document:other';
+  assert.throws(() => parseBackup(JSON.stringify(brokenDocumentId)), /包含无效数据/);
 });

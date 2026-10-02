@@ -99,7 +99,10 @@ function hasConsistentIds(
 
   const contentSet = new Set(contents.map((content) => content.id));
   const documentSet = new Set(documents.map((document) => document.id));
-  return documents.every((document) => contentSet.has(document.contentId)) &&
+  return documents.every((document) =>
+      document.id === `document:${document.contentId}` &&
+      contentSet.has(document.contentId)
+    ) &&
     states.every((state) =>
       state.id === state.contentId &&
       contentSet.has(state.contentId) &&
