@@ -57,3 +57,15 @@ test('uses description when FeedItem has no full content', () => {
     { id: 'block:1', type: 'paragraph', text: 'Summary fallback' }
   ]);
 });
+
+test('preserves separate paragraphs inside RSS container elements', () => {
+  assert.deepEqual(htmlToBlocks(
+    '<div><p>First paragraph.</p><p>Second <strong>paragraph</strong>.</p></div>'
+  ), [
+    { type: 'paragraph', text: 'First paragraph.' },
+    { type: 'paragraph', text: 'Second paragraph.' }
+  ]);
+  assert.deepEqual(htmlToBlocks('<p>First line<br>Second line</p>'), [
+    { type: 'paragraph', text: 'First line\nSecond line' }
+  ]);
+});

@@ -6,8 +6,14 @@ import {
   type ReadingState,
   type ReaderBlock
 } from '@unidock/reader';
+import { FeedFetcher, FeedImportService } from '@unidock/rss';
 import { IndexedDBAdapter } from '@unidock/storage';
 
+const feedForm = getElement<HTMLFormElement>('feed-form');
+const feedUrlInput = getElement<HTMLInputElement>('feed-url');
+const feedSubmit = getElement<HTMLButtonElement>('feed-submit');
+const feedImportStatus = getElement<HTMLElement>('feed-import-status');
+const feedError = getElement<HTMLElement>('feed-error');
 const form = getElement<HTMLFormElement>('content-form');
 const titleInput = getElement<HTMLInputElement>('title');
 const sourceInput = getElement<HTMLInputElement>('sourceId');
@@ -33,6 +39,7 @@ const adapter = new IndexedDBAdapter({ databaseName: 'unidock' });
 let repository: StorageContentRepository | undefined;
 let documentRepository: StorageDocumentRepository | undefined;
 let stateRepository: StorageReadingStateRepository | undefined;
+let feedImportService: FeedImportService | undefined;
 let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
@@ -44,6 +51,7 @@ async function start(): Promise<void> {
     repository = new StorageContentRepository(storage);
     documentRepository = new StorageDocumentRepository(storage);
     stateRepository = new StorageReadingStateRepository(storage);
+    feedImportService = new FeedImportService(repository, documentRepository, new FeedFetcher());
     connectionStatus.textContent = '已连接到本地存储';
     await renderContents();
   } catch (error) {
@@ -52,6 +60,11 @@ async function start(): Promise<void> {
     loading.hidden = true;
   }
 }
+
+feedForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  void importFeed();
+});
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -135,6 +148,26 @@ async function saveContent(): Promise<void> {
     await renderContents();
   } catch (error) {
     showError(formError, toErrorMessage(error));
+  }
+}
+
+async function importFeed(): Promise<void> {
+  if (!feedImportService) return;
+  hideError(feedError);
+  feedSubmit.disabled = true;
+  feedImportStatus.textContent = '正在抓取和导入…';
+
+  try {
+    const result = await feedImportService.importFromUrl({
+      feedUrl: feedUrlInput.value.trim()
+    });
+    feedImportStatus.textContent = `已导入 ${result.contents.length} 篇：${result.feed.title}`;
+    await renderContents();
+  } catch (error) {
+    feedImportStatus.textContent = '导入失败';
+    showError(feedError, toErrorMessage(error));
+  } finally {
+    feedSubmit.disabled = false;
   }
 }
 

@@ -222,6 +222,9 @@ input:focus {
 .reader-document {
   font-size: 1.05rem;
   line-height: 1.8;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .reader-document h1,
@@ -234,6 +237,8 @@ input:focus {
 
 .reader-document p {
   margin-bottom: 1rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .reader-document blockquote {

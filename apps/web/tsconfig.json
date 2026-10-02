@@ -13,6 +13,9 @@
     },
     {
       "path": "../../packages/reader"
+    },
+    {
+      "path": "../../plugins/rss"
     }
   ],
   "include": [

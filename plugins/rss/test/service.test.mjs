@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { FeedFetcher, FeedImportService } from '../dist/index.js';
+import { extractArticle, FeedFetcher, FeedImportService } from '../dist/index.js';
 
 const rss = await readFile(new URL('./fixtures/rss.xml', import.meta.url), 'utf8');
 
@@ -50,16 +50,16 @@ class MemoryDocumentRepository {
   }
 }
 
-function createService(contentRepository = new MemoryContentRepository()) {
+function createService(contentRepository = new MemoryContentRepository(), fetchImpl) {
   const documentRepository = new MemoryDocumentRepository();
   const fetcher = new FeedFetcher({
-    fetch: async () => new Response(rss, {
+    fetch: fetchImpl ?? (async () => new Response(rss, {
       status: 200,
       headers: { 'content-type': 'application/rss+xml' }
-    })
+    }))
   });
   return {
-    service: new FeedImportService(contentRepository, documentRepository, fetcher),
+    service: new FeedImportService(contentRepository, documentRepository, fetcher, extractArticle),
     contentRepository,
     documentRepository
   };
@@ -79,6 +79,93 @@ test('imports fetched RSS items into Content and Reader documents', async () => 
   assert.equal((await documentRepository.getByContentId('feed:rss::article-first'))?.blocks.length, 1);
 });
 
+test('fetches and extracts an article when the feed only contains a summary', async () => {
+  const summaryFeed = `
+    <rss version="2.0">
+      <channel>
+        <title>Summary Feed</title>
+        <item>
+          <title>Article page</title>
+          <link>https://example.com/articles/1</link>
+          <guid>summary-article</guid>
+          <description><![CDATA[<p>Short summary...</p>]]></description>
+        </item>
+      </channel>
+    </rss>
+  `;
+  const articleHtml = `
+    <html>
+      <body>
+        <nav>Navigation</nav>
+        <article>
+          <h1>Article page</h1>
+          <p>Full article paragraph one.</p>
+          <p>Full article paragraph two.</p>
+        </article>
+      </body>
+    </html>
+  `;
+  const requests = [];
+  const { service, documentRepository } = createService(
+    new MemoryContentRepository(),
+    async (url, init) => {
+      requests.push({ url, accept: init.headers.accept });
+      return new Response(url.endsWith('/feed.xml') ? summaryFeed : articleHtml, {
+        status: 200,
+        headers: { 'content-type': url.endsWith('/feed.xml') ? 'application/rss+xml' : 'text/html' }
+      });
+    }
+  );
+
+  const result = await service.importFromUrl({
+    feedUrl: 'https://example.com/feed.xml',
+    feedId: 'feed:summary'
+  });
+  const document = await documentRepository.getByContentId(result.contents[0].id);
+
+  assert.equal(requests.length, 2);
+  assert.match(requests[0].accept, /application\/rss\+xml/);
+  assert.match(requests[1].accept, /text\/html/);
+  assert.deepEqual(document.blocks.map(({ type, text }) => ({ type, text })), [
+    { type: 'heading', text: 'Article page' },
+    { type: 'paragraph', text: 'Full article paragraph one.' },
+    { type: 'paragraph', text: 'Full article paragraph two.' }
+  ]);
+});
+
+test('keeps the summary document when article extraction fails', async () => {
+  const summaryFeed = `
+    <rss version="2.0">
+      <channel>
+        <title>Summary Feed</title>
+        <item>
+          <title>Unavailable article</title>
+          <link>https://example.com/articles/missing</link>
+          <guid>missing-article</guid>
+          <description><![CDATA[<p>Useful summary.</p>]]></description>
+        </item>
+      </channel>
+    </rss>
+  `;
+  const { service, documentRepository } = createService(
+    new MemoryContentRepository(),
+    async (url) => {
+      if (url.endsWith('/feed.xml')) return new Response(summaryFeed);
+      throw new Error('article unavailable');
+    }
+  );
+
+  const result = await service.importFromUrl({
+    feedUrl: 'https://example.com/feed.xml',
+    feedId: 'feed:summary'
+  });
+  const document = await documentRepository.getByContentId(result.contents[0].id);
+
+  assert.deepEqual(document.blocks.map(({ type, text }) => ({ type, text })), [
+    { type: 'paragraph', text: 'Useful summary.' }
+  ]);
+});
+
 test('re-imports the same item without duplicating Content or Document', async () => {
   const { service, contentRepository, documentRepository } = createService();
   await service.importFromUrl({
@@ -93,4 +180,3 @@ test('re-imports the same item without duplicating Content or Document', async (
   assert.equal((await contentRepository.list()).length, 1);
   assert.equal(documentRepository.values.size, 1);
 });
-

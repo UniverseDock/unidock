@@ -11,6 +11,7 @@
         "imports": {
           "@unidock/content": "/packages/content/dist/index.js",
           "@unidock/reader": "/packages/reader/dist/index.js",
+          "@unidock/rss": "/plugins/rss/dist/browser.js",
           "@unidock/storage": "/packages/storage/dist/index.js"
         }
       }
@@ -23,6 +24,24 @@
         <h1>本地内容</h1>
         <p class="intro">内容保存在当前浏览器的 IndexedDB 中，刷新页面后仍然可用。</p>
       </header>
+
+      <section class="panel" aria-labelledby="feed-import-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">RSS / ATOM</p>
+            <h2 id="feed-import-title">导入 Feed</h2>
+          </div>
+          <span id="feed-import-status" class="muted">只导入当前 Feed 内容</span>
+        </div>
+        <form id="feed-form">
+          <label>
+            Feed URL
+            <input id="feed-url" name="feedUrl" type="url" required placeholder="https://example.org/feed.xml">
+          </label>
+          <button id="feed-submit" type="submit">导入 Feed</button>
+        </form>
+        <p id="feed-error" class="error" role="alert" hidden></p>
+      </section>
 
       <section class="panel" aria-labelledby="add-content-title">
         <div class="panel-heading">

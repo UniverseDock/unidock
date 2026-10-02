@@ -14,12 +14,29 @@ export class FeedFetcher {
   private readonly maxResponseBytes: number;
 
   constructor(options: FeedFetcherOptions = {}) {
-    this.fetchImpl = options.fetch ?? globalThis.fetch;
+    this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.maxResponseBytes = options.maxResponseBytes ?? 2_000_000;
   }
 
   async fetchXml(url: string, options: FetchFeedOptions = {}): Promise<string> {
+    return this.fetchText(url, {
+      ...options,
+      accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9'
+    });
+  }
+
+  async fetchHtml(url: string, options: FetchFeedOptions = {}): Promise<string> {
+    return this.fetchText(url, {
+      ...options,
+      accept: 'text/html, application/xhtml+xml;q=0.9'
+    });
+  }
+
+  private async fetchText(
+    url: string,
+    options: FetchFeedOptions & { accept: string }
+  ): Promise<string> {
     validateUrl(url);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new FeedFetchTimeoutError(url)), this.timeoutMs);
@@ -27,9 +44,7 @@ export class FeedFetcher {
 
     try {
       const response = await this.fetchImpl(url, {
-        headers: {
-          accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9'
-        },
+        headers: { accept: options.accept },
         signal: controller.signal
       });
       if (!response.ok) {

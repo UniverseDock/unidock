@@ -46,9 +46,13 @@ function appendBlock(node: HtmlNode, blocks: DocumentInputBlock[], baseUrl?: str
     if (text) blocks.push({ type: 'heading', level: Number(name[1]) as 1 | 2 | 3, text });
     return;
   }
-  if (name === 'p' || name === 'article' || name === 'section' || name === 'div') {
+  if (name === 'p') {
     const text = cleanText(textContent(node));
     if (text) blocks.push({ type: 'paragraph', text });
+    return;
+  }
+  if (name === 'article' || name === 'section' || name === 'div' || name === 'main' || name === 'body') {
+    for (const child of node.children) appendBlock(child, blocks, baseUrl);
     return;
   }
   if (name === 'ul' || name === 'ol') {
@@ -86,11 +90,16 @@ function appendBlock(node: HtmlNode, blocks: DocumentInputBlock[], baseUrl?: str
 function textContent(node: HtmlNode): string {
   if (isText(node)) return node.data;
   if (!isTag(node)) return '';
+  if (node.name.toLowerCase() === 'br') return '\n';
   return node.children.map(textContent).join('');
 }
 
 function cleanText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return value
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
 }
 
 function safeUrl(value: string | undefined, baseUrl?: string): string | undefined {

@@ -121,7 +121,15 @@ function parseDate(value: string | undefined): number | undefined {
 
 function text(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
-  if (isRecord(value) && typeof value.__cdata === 'string') return value.__cdata;
+  if (isRecord(value)) {
+    if (typeof value.__cdata === 'string') return value.__cdata;
+    if (typeof value['#text'] === 'string') return value['#text'];
+    const nested = Object.entries(value)
+      .filter(([key]) => !key.startsWith('@') && key !== '__cdata' && key !== '#text')
+      .map(([, nestedValue]) => text(nestedValue))
+      .filter(isString);
+    if (nested.length > 0) return nested.join('');
+  }
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return undefined;
 }
