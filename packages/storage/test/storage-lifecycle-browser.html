@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>UniDock Storage lifecycle browser test</title>
+  </head>
+  <body>
+    <pre id="result">starting</pre>
+    <script>
+      const databaseName = `unidock-storage-lifecycle-${crypto.randomUUID()}`;
+      const result = document.querySelector('#result');
+      const lines = [];
+      let stage = 'starting';
+      let settled = false;
+      const storages = [];
+
+      function report(message) {
+        if (settled) return;
+        lines.push(message);
+        result.textContent = lines.join('\n');
+      }
+
+      function mark(nextStage) {
+        stage = nextStage;
+        report(`stage: ${stage}`);
+      }
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+
+      async function openAtVersion(version) {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(databaseName, version);
+          request.onupgradeneeded = () => {
+            const database = request.result;
+            const store = request.transaction.objectStore('records');
+            if (!store.indexNames.contains('lifecycle-test')) {
+              store.createIndex('lifecycle-test', 'id');
+            }
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error ?? new Error('Version upgrade failed.'));
+          request.onblocked = () => reject(new Error('Version upgrade was blocked.'));
+        });
+      }
+
+      async function run() {
+        const { IndexedDBAdapter } = await import('../dist/index.js');
+        mark('opening');
+        const adapter = new IndexedDBAdapter({ databaseName });
+        const storage = await adapter.create();
+        storages.push(storage);
+        const records = storage.collection('records-test');
+
+        mark('validation');
+        try {
+          storage.collection('   ');
+          throw new Error('Blank collection names were accepted.');
+        } catch (error) {
+          assert(
+            error instanceof Error && /Collection name must not be empty/.test(error.message),
+            'Blank collection name error was not explicit.'
+          );
+        }
+        await records.put({ id: 'record-1', value: 'before-close' });
+        assert((await records.get('record-1'))?.value === 'before-close', 'Initial record was not readable.');
+
+        mark('close');
+        storage.close();
+        storage.close();
+        await assertRejects(records.get('record-1'), 'Reading after close unexpectedly succeeded.');
+        await adapter.destroy();
+        await adapter.destroy();
+
+        mark('reopen');
+        const reopenedAdapter = new IndexedDBAdapter({ databaseName });
+        const reopenedStorage = await reopenedAdapter.create();
+        storages.push(reopenedStorage);
+        assert(
+          (await reopenedStorage.collection('records-test').get('record-1'))?.value === 'before-close',
+          'Data was not available after close and reopen.'
+        );
+
+        mark('versionchange');
+        const upgradedDatabase = await openAtVersion(2);
+        upgradedDatabase.close();
+        await assertRejects(
+          reopenedStorage.collection('records-test').get('record-1'),
+          'The old connection remained usable after versionchange.'
+        );
+        await reopenedAdapter.destroy();
+        await reopenedAdapter.destroy();
+        mark('PASS');
+      }
+
+      async function assertRejects(promise, message) {
+        try {
+          await promise;
+        } catch {
+          return;
+        }
+        throw new Error(message);
+      }
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        report(`FAIL: timed out during ${stage}`);
+        settled = true;
+        for (const storage of storages) storage.close();
+      }, 15000);
+
+      run()
+        .then(() => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report('result: PASS');
+          settled = true;
+        })
+        .catch((error) => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report(`FAIL: ${error.message}`);
+          settled = true;
+        });
+    </script>
+  </body>
+</html>

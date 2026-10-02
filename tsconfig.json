@@ -5,10 +5,10 @@
       "path": "./packages/kernel"
     },
     {
-      "path": "./packages/content"
+      "path": "./packages/storage"
     },
     {
-      "path": "./packages/storage"
+      "path": "./packages/content"
     },
     {
       "path": "./packages/sdk"

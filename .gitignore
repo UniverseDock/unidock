@@ -22,6 +22,12 @@ pnpm-debug.log*
 # Local data
 data/
 storage/
+!packages/storage/
+!packages/storage/**
+packages/storage/dist/
+packages/storage/tsconfig.tsbuildinfo
+!packages/sdk/src/storage/
+!packages/sdk/src/storage/**
 
 # OS
 Thumbs.db

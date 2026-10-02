@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>UniDock ContentRepository browser integration test</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@unidock/storage": "/storage/dist/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <pre id="result">starting</pre>
+    <script>
+      const databaseName = `unidock-content-browser-test-${crypto.randomUUID()}`;
+      const result = document.querySelector('#result');
+      const lines = [];
+      let stage = 'starting';
+      let settled = false;
+      const connections = [];
+
+      function report(message) {
+        if (settled) return;
+        lines.push(message);
+        result.textContent = lines.join('\n');
+      }
+
+      function mark(nextStage) {
+        stage = nextStage;
+        report(`stage: ${stage}`);
+      }
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+
+      function equal(actual, expected, message) {
+        assert(JSON.stringify(actual) === JSON.stringify(expected), message);
+      }
+
+      function article(id, overrides = {}) {
+        return {
+          id,
+          type: 'article',
+          title: `Article ${id}`,
+          author: 'UniDock test',
+          tags: ['typescript'],
+          sourceId: 'feed-a',
+          createdAt: 1,
+          updatedAt: 1,
+          ...overrides
+        };
+      }
+
+      async function run() {
+        const [{ IndexedDBAdapter }, { StorageContentRepository }] = await Promise.all([
+          import('@unidock/storage'),
+          import('../dist/index.js')
+        ]);
+        mark('opening');
+        const adapter = new IndexedDBAdapter({ databaseName });
+        const firstStorage = await adapter.create();
+        connections.push(firstStorage);
+        try {
+        const firstRepository = new StorageContentRepository(firstStorage);
+        const settings = firstStorage.collection('settings');
+
+        mark('saving');
+        const original = article('article-01', {
+          subtitle: 'Subtitle', description: 'Description', cover: 'https://example.org/cover.png',
+          tags: ['typescript', 'storage']
+        });
+        await firstRepository.save(original);
+        await firstRepository.save(article('article-015', { sourceId: 'feed-b' }));
+        await firstRepository.save(article('article-02', { tags: ['typescript', 'storage'] }));
+        await firstRepository.save(article('article-03', { tags: ['typescript', 'reader'] }));
+        await firstRepository.save(article('book-01', {
+          type: 'book',
+          tags: ['typescript', 'storage']
+        }));
+        await settings.put({ id: 'article-01', value: 'settings-record' });
+
+        mark('crud');
+        const saved = await firstRepository.get('article-01');
+        equal(saved, original, 'Full Content round trip failed.');
+        assert(saved?.title === 'Article article-01', 'Repository get did not return the saved article.');
+        assert(
+          (await firstStorage.collection('contents').get('article-01'))?.value === undefined,
+          'Collection data leaked into the Content record shape.'
+        );
+        const updated = { ...saved, title: 'Updated article' };
+        await firstRepository.save(updated);
+        assert((await firstRepository.list()).length === 5, 'Update created a duplicate.');
+        assert((await firstRepository.get('article-01'))?.title === 'Updated article', 'Repository update failed.');
+        assert(
+          (await firstRepository.get('settings')) === undefined,
+          'ContentRepository exposed a record from another collection.'
+        );
+
+        mark('query');
+        const filtered = await firstRepository.list({
+          type: 'article',
+          sourceId: 'feed-a',
+          tags: ['typescript', 'storage']
+        });
+        assert(
+          filtered.map((item) => item.id).join(',') === 'article-01,article-02',
+          'Type/source/tag filtering returned an unexpected result.'
+        );
+        const page = await firstRepository.list({
+          type: 'article',
+          sourceId: 'feed-a',
+          tags: ['typescript'],
+          offset: 1,
+          limit: 1
+        });
+        assert(page.length === 1 && page[0].id === 'article-02', 'Filtering before pagination failed.');
+        assert(
+          (await firstRepository.list({ sourceId: 'missing' })).length === 0,
+          'Unmatched query did not return an empty result.'
+        );
+        equal(await firstRepository.list({ limit: 0 }), [], 'Zero limit failed.');
+        const withoutTags = article('untagged');
+        delete withoutTags.tags;
+        await firstRepository.save(withoutTags);
+        assert(!(await firstRepository.list({ tags: ['typescript'] })).some(item => item.id === 'untagged'),
+          'Missing tags incorrectly matched.');
+        assert((await firstRepository.list({ tags: [] })).length === 6, 'Empty tags should not filter.');
+        await settings.clear();
+        equal(await firstRepository.get('article-01'), updated, 'Clearing settings affected contents.');
+        await settings.put({ id: 'article-01', value: 'settings-record' });
+        report('PASS: full round trip, update, filters, pagination, empty queries, collection clear isolation');
+
+        mark('delete');
+        await firstRepository.delete('article-03');
+        await firstRepository.delete('missing');
+        assert((await firstRepository.get('article-03')) === undefined, 'Repository delete failed.');
+        assert((await firstRepository.get('article-01'))?.title === 'Updated article', 'Delete affected another record.');
+
+        firstStorage.close();
+        await adapter.destroy();
+
+        mark('reopening');
+        const secondAdapter = new IndexedDBAdapter({ databaseName });
+        const secondStorage = await secondAdapter.create();
+        connections.push(secondStorage);
+        const secondRepository = new StorageContentRepository(secondStorage);
+        assert(
+          (await secondRepository.get('article-01'))?.title === 'Updated article',
+          'Content was not persisted after reopening.'
+        );
+        assert((await secondRepository.get('article-03')) === undefined, 'Deleted Content reappeared after reopening.');
+        assert(
+          (await secondStorage.collection('settings').get('article-01'))?.value === 'settings-record',
+          'Other collection data was not persisted.'
+        );
+
+        secondStorage.close();
+        await secondAdapter.destroy();
+        report('PASS: delete, same-ID collection isolation, connection reopen persistence');
+        } finally {
+          mark('cleanup');
+          for (const storage of connections) storage.close();
+          await new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(databaseName);
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+            request.onblocked = () => reject(new Error('Test database cleanup blocked'));
+          });
+        }
+      }
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        report(`FAIL: timed out during ${stage}`);
+        settled = true;
+        for (const storage of connections) storage.close();
+      }, 15000);
+
+      run()
+        .then(() => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report('result: PASS');
+          settled = true;
+        })
+        .catch((error) => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report(`FAIL: ${error.message}`);
+          settled = true;
+        });
+    </script>
+  </body>
+</html>

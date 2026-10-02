@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>UniDock Storage query boundary test</title>
+  </head>
+  <body>
+    <pre id="result">starting</pre>
+    <script>
+      const databaseName = `unidock-storage-query-${crypto.randomUUID()}`;
+      const result = document.querySelector('#result');
+      const lines = [];
+      let stage = 'starting';
+      let settled = false;
+
+      function report(message) {
+        if (settled) return;
+        lines.push(message);
+        result.textContent = lines.join('\n');
+      }
+
+      function mark(nextStage) {
+        stage = nextStage;
+        report(`stage: ${stage}`);
+      }
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+
+      async function run() {
+        const { IndexedDBAdapter } = await import('../dist/index.js');
+        const adapter = new IndexedDBAdapter({ databaseName });
+        const storage = await adapter.create();
+        const collection = storage.collection('prefix-collection');
+        const otherCollection = storage.collection('prefix-collection\uFFFF');
+
+        mark('records');
+        await collection.put({ id: '', kind: 'empty' });
+        await collection.put({ id: 'normal', kind: 'normal' });
+        await collection.put({ id: 'unicode-😀', kind: 'unicode' });
+        await collection.put({ id: 'high-\uFFFF', kind: 'high' });
+        await collection.put({ id: 'high-\uFFFF-suffix', kind: 'high-suffix' });
+        await otherCollection.put({ id: 'same-id', kind: 'other-collection' });
+
+        mark('range');
+        const records = await collection.list();
+        const ids = records.map((record) => record.id);
+        assert(ids.includes(''), 'Empty ID was not listed.');
+        assert(ids.includes('unicode-😀'), 'Unicode ID was not listed.');
+        assert(ids.includes('high-\uFFFF'), 'ID containing U+FFFF was not listed.');
+        assert(ids.includes('high-\uFFFF-suffix'), 'ID after U+FFFF was not listed.');
+        assert(!ids.some((id) => id === 'same-id'), 'A different collection leaked into the result.');
+
+        mark('where');
+        assert(
+          (await collection.list({ where: { labels: 'one' } })).length === 0,
+          'Missing array field unexpectedly matched.'
+        );
+        await collection.put({ id: 'array', labels: ['one', 'two'] });
+        assert(
+          (await collection.list({ where: { labels: 'one' } })).some((record) => record.id === 'array'),
+          'Array membership matching failed.'
+        );
+
+        mark('pagination');
+        const orderedIds = (await collection.list()).map((record) => record.id);
+        const page = await collection.list({ offset: 1, limit: 2 });
+        assert(page.length === 2, 'Pagination returned the wrong number of records.');
+        assert(
+          JSON.stringify(page.map((record) => record.id)) === JSON.stringify(orderedIds.slice(1, 3)),
+          'Pagination order was not stable within the IndexedDB key order.'
+        );
+        assert((await collection.list({ limit: 0 })).length === 0, 'Zero limit did not return an empty page.');
+        assert((await collection.list({ offset: -2, limit: -1 })).length === 0, 'Negative bounds were not normalized.');
+
+        mark('clear');
+        await collection.clear();
+        assert((await collection.list()).length === 0, 'clear did not remove the target collection.');
+        assert(
+          (await otherCollection.get('same-id'))?.kind === 'other-collection',
+          'clear removed a different collection.'
+        );
+
+        storage.close();
+        await adapter.destroy();
+        mark('PASS');
+      }
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        report(`FAIL: timed out during ${stage}`);
+        settled = true;
+      }, 15000);
+
+      run()
+        .then(() => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report('result: PASS');
+          settled = true;
+        })
+        .catch((error) => {
+          if (settled) return;
+          clearTimeout(timeout);
+          report(`FAIL: ${error.message}`);
+          settled = true;
+        });
+    </script>
+  </body>
+</html>

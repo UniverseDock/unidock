@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>UniDock IndexedDB smoke test</title>
+  </head>
+  <body>
+    <pre id="result">running</pre>
+    <script>
+      const databaseName = `unidock-browser-smoke-test-${Date.now()}`;
+      const result = document.querySelector('#result');
+      let stage = 'starting';
+
+      function mark(nextStage) {
+        stage = nextStage;
+        result.textContent = stage;
+      }
+
+      async function deleteDatabase() {
+        mark('deleting');
+        await new Promise((resolve, reject) => {
+          const request = indexedDB.deleteDatabase(databaseName);
+          request.onsuccess = resolve;
+          request.onerror = () => reject(request.error ?? new Error('Unable to reset test database.'));
+          request.onblocked = () => reject(new Error('Resetting the test database was blocked.'));
+        });
+      }
+
+      async function run(IndexedDBAdapter) {
+        mark('opening');
+        const adapter = new IndexedDBAdapter({ databaseName });
+        const firstStorage = await adapter.create();
+        const contents = firstStorage.collection('contents');
+        const settings = firstStorage.collection('settings');
+
+        mark('writing');
+        await contents.put({ id: 'article-1', title: 'Persisted article' });
+        await settings.put({ id: 'theme', value: 'dark' });
+
+        mark('reading');
+        if ((await contents.get('article-1'))?.title !== 'Persisted article') {
+          throw new Error('Content CRUD failed.');
+        }
+        if ((await contents.get('theme')) !== undefined) {
+          throw new Error('Collection isolation failed.');
+        }
+
+        firstStorage.close();
+        await adapter.destroy();
+
+        mark('reopening');
+        const secondStorage = await new IndexedDBAdapter({ databaseName }).create();
+        const persisted = await secondStorage.collection('contents').get('article-1');
+        const setting = await secondStorage.collection('settings').get('theme');
+        if (persisted?.title !== 'Persisted article' || setting?.value !== 'dark') {
+          throw new Error('Persistence after reopening failed.');
+        }
+
+        secondStorage.close();
+        mark('PASS');
+      }
+
+      const timeout = setTimeout(() => {
+        result.textContent = `FAIL: smoke test timed out during ${stage}`;
+      }, 4000);
+
+      import('../dist/index.js')
+        .then(({ IndexedDBAdapter }) => run(IndexedDBAdapter))
+        .then(() => clearTimeout(timeout))
+        .catch((error) => {
+          clearTimeout(timeout);
+          result.textContent = `FAIL: ${error.message}`;
+        });
+    </script>
+  </body>
+</html>

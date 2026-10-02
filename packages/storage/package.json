@@ -1,0 +1,15 @@
+{
+  "name": "@unidock/storage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "UniDock storage abstractions and browser adapters.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node --test test/indexeddb-adapter.test.mjs",
+    "test:browser": "pnpm run build && chromium --headless --no-sandbox --disable-gpu --allow-file-access-from-files --dump-dom --virtual-time-budget=3000 test/indexeddb-browser.html"
+  }
+}
