@@ -18,6 +18,10 @@ if (!Array.isArray(manifest.icons) || manifest.icons.length === 0) {
   throw new Error('PWA manifest must declare at least one icon.');
 }
 
+if (!/^unidock-web-v\d+$/.test(serviceWorker.match(/const CACHE_NAME = '([^']+)'/)?.[1] ?? '')) {
+  throw new Error('Service Worker must declare a versioned UniDock cache name.');
+}
+
 for (const icon of manifest.icons) {
   if (typeof icon.src !== 'string' || !icon.src.startsWith('./')) {
     throw new Error(`PWA icon must use a relative path: ${icon.src}`);

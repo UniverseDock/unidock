@@ -70,6 +70,7 @@ async function registerServiceWorker(): Promise<void> {
     const registration = await navigator.serviceWorker.register('./sw.js');
     if (registration.waiting) showUpdateStatus();
     registration.addEventListener('updatefound', () => {
+      appUpdateStatus.hidden = true;
       const worker = registration.installing;
       if (!worker) return;
       worker.addEventListener('statechange', () => {
@@ -77,6 +78,9 @@ async function registerServiceWorker(): Promise<void> {
           showUpdateStatus();
         }
       });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
     });
   } catch {
     appUpdateStatus.textContent = '离线缓存暂不可用';

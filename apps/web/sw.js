@@ -1,4 +1,4 @@
-const CACHE_NAME = 'unidock-web-v1';
+const CACHE_NAME = 'unidock-web-v2';
 const APP_SHELL = [
   './',
   './index.html',
