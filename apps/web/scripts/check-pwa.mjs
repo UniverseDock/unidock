@@ -22,6 +22,10 @@ if (!/^unidock-web-v\d+$/.test(serviceWorker.match(/const CACHE_NAME = '([^']+)'
   throw new Error('Service Worker must declare a versioned UniDock cache name.');
 }
 
+if (!serviceWorker.includes('SKIP_WAITING')) {
+  throw new Error('Service Worker must support a SKIP_WAITING update message.');
+}
+
 for (const icon of manifest.icons) {
   if (typeof icon.src !== 'string' || !icon.src.startsWith('./')) {
     throw new Error(`PWA icon must use a relative path: ${icon.src}`);

@@ -46,6 +46,7 @@ const toggleStarred = getElement<HTMLButtonElement>('toggle-starred');
 const backToList = getElement<HTMLButtonElement>('back-to-list');
 const networkStatus = getElement<HTMLElement>('network-status');
 const appUpdateStatus = getElement<HTMLElement>('app-update-status');
+const appUpdateApply = getElement<HTMLButtonElement>('app-update-apply');
 const exportDataButton = getElement<HTMLButtonElement>('export-data');
 const importDataButton = getElement<HTMLButtonElement>('import-data');
 const importFileInput = getElement<HTMLInputElement>('import-file');
@@ -70,22 +71,26 @@ let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
 let savePositionTimer: number | undefined;
+let allowReload = false;
 
 async function registerServiceWorker(): Promise<void> {
   try {
     const registration = await navigator.serviceWorker.register('./sw.js');
-    if (registration.waiting) showUpdateStatus();
+    if (registration.waiting) showUpdateStatus(registration);
     registration.addEventListener('updatefound', () => {
       appUpdateStatus.hidden = true;
+      appUpdateApply.hidden = true;
       const worker = registration.installing;
       if (!worker) return;
       worker.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          showUpdateStatus();
+          showUpdateStatus(registration);
         }
       });
     });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!allowReload) return;
+      allowReload = false;
       window.location.reload();
     });
   } catch {
@@ -108,9 +113,18 @@ function renderNetworkStatus(): void {
   }
 }
 
-function showUpdateStatus(): void {
-  appUpdateStatus.textContent = '发现新版本，刷新页面后生效。';
+function showUpdateStatus(registration: ServiceWorkerRegistration): void {
+  appUpdateStatus.textContent = '发现新版本，点击立即更新。';
   appUpdateStatus.hidden = false;
+  appUpdateApply.hidden = false;
+  appUpdateApply.onclick = () => {
+    const worker = registration.waiting;
+    if (!worker) return;
+    allowReload = true;
+    appUpdateStatus.textContent = '正在更新…';
+    appUpdateApply.hidden = true;
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  };
 }
 
 async function start(): Promise<void> {
