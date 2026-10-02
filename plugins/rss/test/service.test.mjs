@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-import { extractArticle, FeedFetcher, FeedImportService } from '../dist/index.js';
+import { FeedFetcher, FeedImportService, htmlToBlocks } from '../dist/index.js';
 
 const rss = await readFile(new URL('./fixtures/rss.xml', import.meta.url), 'utf8');
 
@@ -59,7 +59,9 @@ function createService(contentRepository = new MemoryContentRepository(), fetchI
     }))
   });
   return {
-    service: new FeedImportService(contentRepository, documentRepository, fetcher, extractArticle),
+    service: new FeedImportService(contentRepository, documentRepository, fetcher, (html, url) => ({
+      blocks: htmlToBlocks(html, url)
+    })),
     contentRepository,
     documentRepository
   };
@@ -96,7 +98,6 @@ test('fetches and extracts an article when the feed only contains a summary', as
   const articleHtml = `
     <html>
       <body>
-        <nav>Navigation</nav>
         <article>
           <h1>Article page</h1>
           <p>Full article paragraph one.</p>

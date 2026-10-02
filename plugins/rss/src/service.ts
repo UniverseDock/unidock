@@ -1,9 +1,8 @@
 import type { Content, ContentRepository } from '@unidock/content';
-import type { DocumentRepository, ReaderDocument } from '@unidock/reader';
+import type { DocumentInputBlock, DocumentRepository, ReaderDocument } from '@unidock/reader';
 import { FeedFetcher, type FetchFeedOptions } from './fetcher.js';
 import { feedItemToArticle } from './importer.js';
 import { feedItemToDocument } from './document-importer.js';
-import type { ExtractedArticle } from './article-extractor.js';
 import type { Feed, ParseFeedOptions } from './model.js';
 import { parseFeed } from './parser.js';
 
@@ -13,6 +12,10 @@ export interface FeedImportResult {
   feed: Feed;
   contents: Content[];
   documents: ReaderDocument[];
+}
+
+export interface ExtractedArticle {
+  blocks: DocumentInputBlock[];
 }
 
 export type ArticleExtractor = (html: string, url: string) => ExtractedArticle | undefined;
