@@ -8,7 +8,7 @@ import {
 } from '@unidock/reader';
 import { FeedFetcher, FeedImportService } from '@unidock/rss';
 import { IndexedDBAdapter } from '@unidock/storage';
-import type { StorageCollection, StorageRecord } from '@unidock/storage';
+import type { Storage, StorageCollection, StorageRecord } from '@unidock/storage';
 
 interface FeedSubscription extends StorageRecord {
   url: string;
@@ -45,6 +45,8 @@ const toggleStarred = getElement<HTMLButtonElement>('toggle-starred');
 const backToList = getElement<HTMLButtonElement>('back-to-list');
 const networkStatus = getElement<HTMLElement>('network-status');
 const appUpdateStatus = getElement<HTMLElement>('app-update-status');
+const exportDataButton = getElement<HTMLButtonElement>('export-data');
+const backupStatus = getElement<HTMLElement>('backup-status');
 
 if ('serviceWorker' in navigator) {
   void registerServiceWorker();
@@ -56,6 +58,7 @@ renderNetworkStatus();
 
 const adapter = new IndexedDBAdapter({ databaseName: 'unidock' });
 let repository: StorageContentRepository | undefined;
+let storage: Storage | undefined;
 let documentRepository: StorageDocumentRepository | undefined;
 let stateRepository: StorageReadingStateRepository | undefined;
 let feedImportService: FeedImportService | undefined;
@@ -109,7 +112,7 @@ function showUpdateStatus(): void {
 
 async function start(): Promise<void> {
   try {
-    const storage = await adapter.create();
+    storage = await adapter.create();
     feedSubscriptions = storage.collection<FeedSubscription>('feed-subscriptions');
     repository = new StorageContentRepository(storage);
     documentRepository = new StorageDocumentRepository(storage);
@@ -153,6 +156,10 @@ feedList.addEventListener('click', (event) => {
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   void saveContent();
+});
+
+exportDataButton.addEventListener('click', () => {
+  void exportData();
 });
 
 list.addEventListener('click', (event) => {
@@ -295,6 +302,38 @@ async function removeFeed(url: string): Promise<void> {
     feedImportStatus.textContent = '已移除 Feed 订阅，已导入内容保留。';
   } catch (error) {
     showError(feedError, toErrorMessage(error));
+  }
+}
+
+async function exportData(): Promise<void> {
+  if (!repository || !storage || !feedSubscriptions) return;
+  backupStatus.textContent = '正在准备导出…';
+  try {
+    const [contents, documents, states, feeds] = await Promise.all([
+      repository.list(),
+      storage.collection('reader-documents').list(),
+      storage.collection('reader-state').list(),
+      feedSubscriptions.list()
+    ]);
+    const payload = {
+      format: 'unidock-backup',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      contents,
+      documents,
+      states,
+      feeds
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `unidock-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    backupStatus.textContent = `已导出 ${contents.length} 条内容和 ${feeds.length} 个 Feed。`;
+  } catch (error) {
+    backupStatus.textContent = `导出失败：${toErrorMessage(error)}`;
   }
 }
 

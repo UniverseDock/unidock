@@ -113,6 +113,18 @@
         <ul id="content-list" class="content-list"></ul>
         <p id="list-error" class="error" role="alert" hidden></p>
       </section>
+
+      <section class="panel" aria-labelledby="backup-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">LOCAL FIRST</p>
+            <h2 id="backup-title">数据备份</h2>
+          </div>
+          <span class="muted">导出当前浏览器中的本地数据</span>
+        </div>
+        <button id="export-data" class="secondary-button" type="button">导出 JSON</button>
+        <p id="backup-status" class="muted" role="status"></p>
+      </section>
     </main>
     <script type="module" src="./dist/main.js"></script>
   </body>
