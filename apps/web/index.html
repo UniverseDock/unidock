@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="UniDock 本地优先内容工作台">
+    <title>UniDock · Local Content</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "@unidock/content": "/packages/content/dist/index.js",
+          "@unidock/reader": "/packages/reader/dist/index.js",
+          "@unidock/storage": "/packages/storage/dist/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">YOUR DOCK TO THE UNIVERSE</p>
+        <h1>本地内容</h1>
+        <p class="intro">内容保存在当前浏览器的 IndexedDB 中，刷新页面后仍然可用。</p>
+      </header>
+
+      <section class="panel" aria-labelledby="add-content-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">LOCAL FIRST</p>
+            <h2 id="add-content-title">添加内容</h2>
+          </div>
+          <span id="connection-status" class="status" role="status">正在连接…</span>
+        </div>
+        <form id="content-form">
+          <label>
+            标题
+            <input id="title" name="title" required maxlength="200" placeholder="例如：今天读到的文章">
+          </label>
+          <label>
+            来源
+            <input id="sourceId" name="sourceId" maxlength="200" placeholder="例如：personal">
+          </label>
+          <label>
+            标签
+            <input id="tags" name="tags" maxlength="500" placeholder="用逗号分隔，例如：阅读,技术">
+          </label>
+          <label>
+            正文
+            <textarea id="body" name="body" rows="5" maxlength="20000" placeholder="每一段占一行"></textarea>
+          </label>
+          <button type="submit">保存到本地</button>
+        </form>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section id="reader-panel" class="panel reader-panel" aria-labelledby="reader-title" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">READER</p>
+            <h2 id="reader-title">文章阅读</h2>
+            <p id="reader-state" class="content-meta"></p>
+          </div>
+          <div class="reader-actions">
+            <button id="toggle-read" class="secondary-button" type="button">标记已读</button>
+            <button id="toggle-starred" class="secondary-button" type="button">收藏</button>
+            <button id="back-to-list" class="secondary-button" type="button">返回列表</button>
+          </div>
+        </div>
+        <div id="reader-error" class="error" role="alert" hidden></div>
+        <article id="reader-document" class="reader-document"></article>
+      </section>
+
+      <section class="panel" aria-labelledby="content-list-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">CONTENT REPOSITORY</p>
+            <h2 id="content-list-title">我的内容</h2>
+          </div>
+          <span id="content-count" class="muted">0 条</span>
+        </div>
+        <p id="loading" class="muted">正在读取本地内容…</p>
+        <p id="empty-state" class="empty" hidden>还没有本地内容，先添加一条吧。</p>
+        <ul id="content-list" class="content-list"></ul>
+        <p id="list-error" class="error" role="alert" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="./dist/main.js"></script>
+  </body>
+</html>

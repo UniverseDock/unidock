@@ -12,6 +12,12 @@
     },
     {
       "path": "./packages/sdk"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./packages/reader"
     }
   ]
 }
