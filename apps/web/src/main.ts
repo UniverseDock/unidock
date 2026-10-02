@@ -88,6 +88,14 @@ function renderNetworkStatus(): void {
   const online = navigator.onLine;
   networkStatus.textContent = online ? '在线' : '离线模式';
   networkStatus.classList.toggle('offline', !online);
+  feedSubmit.disabled = !online;
+  feedRefresh.disabled = !online;
+  feedUrlInput.disabled = !online;
+  if (!online) {
+    feedImportStatus.textContent = '离线模式下只能阅读已保存内容';
+  } else if (feedImportStatus.textContent === '离线模式下只能阅读已保存内容') {
+    feedImportStatus.textContent = '可以导入或刷新 Feed';
+  }
 }
 
 function showUpdateStatus(): void {
@@ -247,8 +255,7 @@ async function importFeed(refresh = false): Promise<void> {
     feedImportStatus.textContent = '导入失败';
     showError(feedError, toErrorMessage(error));
   } finally {
-    feedSubmit.disabled = false;
-    feedRefresh.disabled = false;
+    renderNetworkStatus();
   }
 }
 
