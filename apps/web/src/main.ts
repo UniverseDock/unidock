@@ -138,10 +138,23 @@ async function start(): Promise<void> {
     connectionStatus.textContent = '已连接到本地存储';
     await renderContents();
     await renderFeedSubscriptions();
+    await requestPersistentStorage();
   } catch (error) {
     connectionStatus.textContent = '连接失败';
     showError(listError, toErrorMessage(error));
     loading.hidden = true;
+  }
+}
+
+async function requestPersistentStorage(): Promise<void> {
+  if (!navigator.storage?.persist) return;
+  try {
+    const granted = await navigator.storage.persisted() || await navigator.storage.persist();
+    connectionStatus.textContent = granted
+      ? '已连接到本地存储（持久化）'
+      : '已连接到本地存储（浏览器可能清理数据）';
+  } catch {
+    // 持久化请求失败不影响正常使用。
   }
 }
 
@@ -655,7 +668,17 @@ function hideError(element: HTMLElement): void {
 }
 
 function toErrorMessage(error: unknown): string {
+  if (isQuotaError(error)) {
+    return '本地存储空间不足，请清理内容或导出备份后重试。';
+  }
   return error instanceof Error ? error.message : '发生未知错误。';
+}
+
+function isQuotaError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    return error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED';
+  }
+  return error instanceof Error && /quota/i.test(error.message);
 }
 
 void start();
