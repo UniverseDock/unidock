@@ -90,6 +90,14 @@ feedList.addEventListener('click', (event) => {
   void refreshFeed({ id: `feed:${url}`, url, title: '', updatedAt: 0 });
 });
 
+feedList.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement) || target.dataset.action !== 'remove-feed') return;
+  const url = target.dataset.feedUrl;
+  if (!url) return;
+  void removeFeed(url);
+});
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   void saveContent();
@@ -227,6 +235,18 @@ async function renderFeedSubscriptions(): Promise<void> {
   feedList.replaceChildren(...feeds.map(renderFeedSubscription));
 }
 
+async function removeFeed(url: string): Promise<void> {
+  if (!feedSubscriptions) return;
+  hideError(feedError);
+  try {
+    await feedSubscriptions.delete(`feed:${new URL(url).toString()}`);
+    await renderFeedSubscriptions();
+    feedImportStatus.textContent = '已移除 Feed 订阅，已导入内容保留。';
+  } catch (error) {
+    showError(feedError, toErrorMessage(error));
+  }
+}
+
 function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
   const item = document.createElement('li');
   item.className = 'feed-item';
@@ -244,7 +264,16 @@ function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
   refresh.dataset.feedUrl = feed.url;
   refresh.type = 'button';
   refresh.textContent = '刷新';
-  item.append(details, refresh);
+  const remove = document.createElement('button');
+  remove.className = 'delete-button';
+  remove.dataset.action = 'remove-feed';
+  remove.dataset.feedUrl = feed.url;
+  remove.type = 'button';
+  remove.textContent = '移除';
+  const actions = document.createElement('div');
+  actions.className = 'content-actions';
+  actions.append(refresh, remove);
+  item.append(details, actions);
   return item;
 }
 
