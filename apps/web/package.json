@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "check:pwa": "node scripts/check-pwa.mjs"
+    "check:pwa": "node scripts/check-pwa.mjs",
+    "test": "pnpm run build && node --test test/backup.test.mjs"
   },
   "dependencies": {
     "@unidock/content": "workspace:*",

@@ -29,7 +29,7 @@ for (const icon of manifest.icons) {
   await access(resolve(appRoot, icon.src.slice(2)));
 }
 
-for (const resource of ['./index.html', './manifest.webmanifest', './styles.css', './icon.svg']) {
+for (const resource of ['./index.html', './manifest.webmanifest', './styles.css', './icon.svg', './dist/backup.js']) {
   if (!serviceWorker.includes(`'${resource}'`)) {
     throw new Error(`Service Worker does not cache ${resource}.`);
   }

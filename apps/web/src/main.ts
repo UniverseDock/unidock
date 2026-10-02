@@ -9,36 +9,13 @@ import {
 import { FeedFetcher, FeedImportService } from '@unidock/rss';
 import { IndexedDBAdapter } from '@unidock/storage';
 import type { Storage, StorageCollection, StorageRecord } from '@unidock/storage';
-
-interface FeedSubscription extends StorageRecord {
-  url: string;
-  title: string;
-  updatedAt: number;
-}
-
-interface BackupPayload {
-  contents: Content[];
-  documents: BackupDocument[];
-  states: BackupState[];
-  feeds: FeedSubscription[];
-}
-
-interface BackupDocument extends StorageRecord {
-  contentId: string;
-  version: number;
-  title: string;
-  blocks: unknown[];
-}
-
-interface BackupState extends StorageRecord {
-  contentId: string;
-  documentId: string;
-  documentVersion: number;
-  read: boolean;
-  starred: boolean;
-  updatedAt: number;
-  position?: ReadingState['position'];
-}
+import {
+  createBackupPayload,
+  parseBackup,
+  type BackupDocument,
+  type BackupState,
+  type FeedSubscription
+} from './backup.js';
 
 const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
@@ -347,19 +324,11 @@ async function exportData(): Promise<void> {
   try {
     const [contents, documents, states, feeds] = await Promise.all([
       repository.list(),
-      storage.collection('reader-documents').list(),
-      storage.collection('reader-state').list(),
+      storage.collection<BackupDocument>('reader-documents').list(),
+      storage.collection<BackupState>('reader-state').list(),
       feedSubscriptions.list()
     ]);
-    const payload = {
-      format: 'unidock-backup',
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      contents,
-      documents,
-      states,
-      feeds
-    };
+    const payload = createBackupPayload(contents, documents, states, feeds);
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -402,133 +371,6 @@ async function importData(file: File): Promise<void> {
   } catch (error) {
     backupStatus.textContent = `恢复失败：${toErrorMessage(error)}`;
   }
-}
-
-function parseBackup(text: string): BackupPayload {
-  const value: unknown = JSON.parse(text);
-  if (!isRecord(value) || value.format !== 'unidock-backup' || value.version !== 1) {
-    throw new Error('不是受支持的 UniDock 备份文件。');
-  }
-  const contents = arrayField(value, 'contents');
-  const documents = arrayField(value, 'documents');
-  const states = arrayField(value, 'states');
-  const feeds = arrayField(value, 'feeds');
-  if (!contents.every(isContentBackup) ||
-      !documents.every(isDocumentBackup) ||
-      !states.every(isStateBackup) ||
-      !feeds.every(isFeedSubscription)) {
-    throw new Error('备份文件包含无效数据。');
-  }
-  return {
-    contents: contents as BackupPayload['contents'],
-    documents: documents as BackupPayload['documents'],
-    states: states as BackupPayload['states'],
-    feeds: feeds as BackupPayload['feeds']
-  };
-}
-
-function arrayField(value: Record<string, unknown>, key: string): unknown[] {
-  const field = value[key];
-  if (!Array.isArray(field)) throw new Error(`备份缺少 ${key} 数组。`);
-  return field;
-}
-
-function isContentBackup(value: unknown): value is Content {
-  return isRecord(value) &&
-    typeof value.id === 'string' &&
-    ['book', 'article', 'rss', 'live', 'video', 'audio', 'comic', 'document'].includes(value.type as string) &&
-    typeof value.title === 'string' &&
-    (value.subtitle === undefined || typeof value.subtitle === 'string') &&
-    (value.description === undefined || typeof value.description === 'string') &&
-    (value.cover === undefined || typeof value.cover === 'string') &&
-    (value.author === undefined || typeof value.author === 'string') &&
-    (value.tags === undefined || Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === 'string')) &&
-    (value.sourceId === undefined || typeof value.sourceId === 'string') &&
-    finiteNumber(value.createdAt) &&
-    finiteNumber(value.updatedAt);
-}
-
-function isDocumentBackup(value: unknown): value is BackupDocument {
-  return isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.contentId === 'string' &&
-    value.version === 1 &&
-    typeof value.title === 'string' &&
-    Array.isArray(value.blocks) &&
-    value.blocks.every(isReaderBlock);
-}
-
-function isStateBackup(value: unknown): value is BackupState {
-  return isRecord(value) &&
-    typeof value.contentId === 'string' &&
-    typeof value.documentId === 'string' &&
-    Number.isInteger(value.documentVersion) &&
-    (value.documentVersion as number) > 0 &&
-    (value.position === undefined || isReadingPosition(value.position)) &&
-    typeof value.read === 'boolean' &&
-    typeof value.starred === 'boolean' &&
-    finiteNumber(value.updatedAt);
-}
-
-function isFeedSubscription(value: unknown): value is FeedSubscription {
-  return isRecord(value) &&
-    typeof value.id === 'string' &&
-    typeof value.url === 'string' &&
-    isHttpUrl(value.url) &&
-    typeof value.title === 'string' &&
-    finiteNumber(value.updatedAt);
-}
-
-function isReaderBlock(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.type !== 'string') return false;
-  switch (value.type) {
-    case 'heading':
-      return (value.level === 1 || value.level === 2 || value.level === 3) && typeof value.text === 'string';
-    case 'paragraph':
-    case 'quote':
-      return typeof value.text === 'string' &&
-        (value.cite === undefined || typeof value.cite === 'string');
-    case 'list':
-      return typeof value.ordered === 'boolean' &&
-        Array.isArray(value.items) &&
-        value.items.every((item) => typeof item === 'string');
-    case 'code':
-      return typeof value.code === 'string' &&
-        (value.language === undefined || typeof value.language === 'string');
-    case 'image':
-      return typeof value.src === 'string' &&
-        isHttpUrl(value.src) &&
-        typeof value.alt === 'string' &&
-        (value.caption === undefined || typeof value.caption === 'string');
-    case 'divider':
-      return true;
-    default:
-      return false;
-  }
-}
-
-function isReadingPosition(value: unknown): boolean {
-  return isRecord(value) &&
-    typeof value.blockId === 'string' &&
-    Number.isInteger(value.offset) &&
-    (value.offset as number) >= 0;
-}
-
-function finiteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol;
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
 }
 
 function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {

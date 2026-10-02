@@ -1,4 +1,4 @@
-const CACHE_NAME = 'unidock-web-v2';
+const CACHE_NAME = 'unidock-web-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './icon.svg',
   './styles.css',
   './dist/main.js',
+  './dist/backup.js',
   '/packages/content/dist/index.js',
   '/packages/reader/dist/index.js',
   '/packages/storage/dist/index.js',
