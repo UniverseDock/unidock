@@ -71,7 +71,8 @@ export function parseBackup(text: string): BackupPayload {
       !documents.every(isDocumentBackup) ||
       !states.every(isStateBackup) ||
       !feeds.every(isFeedSubscription) ||
-      !isIsoDate(value.exportedAt)) {
+      !isIsoDate(value.exportedAt) ||
+      !hasConsistentIds(contents, documents, states, feeds)) {
     throw new Error('备份文件包含无效数据。');
   }
   return {
@@ -83,6 +84,32 @@ export function parseBackup(text: string): BackupPayload {
     states,
     feeds
   };
+}
+
+function hasConsistentIds(
+  contents: Content[],
+  documents: BackupDocument[],
+  states: BackupState[],
+  feeds: FeedSubscription[]
+): boolean {
+  const contentIds = uniqueIds(contents.map((content) => content.id));
+  const documentIds = uniqueIds(documents.map((document) => document.id));
+  const feedIds = uniqueIds(feeds.map((feed) => feed.id));
+  if (!contentIds || !documentIds || !feedIds) return false;
+
+  const contentSet = new Set(contents.map((content) => content.id));
+  const documentSet = new Set(documents.map((document) => document.id));
+  return documents.every((document) => contentSet.has(document.contentId)) &&
+    states.every((state) =>
+      state.id === state.contentId &&
+      contentSet.has(state.contentId) &&
+      documentSet.has(state.documentId)
+    ) &&
+    feeds.every((feed) => feed.id === `feed:${feed.url}`);
+}
+
+function uniqueIds(ids: string[]): boolean {
+  return new Set(ids).size === ids.length;
 }
 
 function arrayField(value: Record<string, unknown>, key: string): unknown[] {

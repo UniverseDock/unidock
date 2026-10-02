@@ -54,3 +54,13 @@ test('rejects unsafe feed and image URLs', () => {
   payload.feeds[0].url = 'javascript:alert(1)';
   assert.throws(() => parseBackup(JSON.stringify(payload)), /包含无效数据/);
 });
+
+test('rejects duplicate IDs and broken cross-record references', () => {
+  const payload = createBackupPayload([content], [document], [state], [feed]);
+  payload.contents.push({ ...content });
+  assert.throws(() => parseBackup(JSON.stringify(payload)), /包含无效数据/);
+
+  const broken = createBackupPayload([content], [document], [state], [feed]);
+  broken.documents[0].contentId = 'content:missing';
+  assert.throws(() => parseBackup(JSON.stringify(broken)), /包含无效数据/);
+});
