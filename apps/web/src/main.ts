@@ -368,6 +368,15 @@ async function exportData(): Promise<void> {
 
 async function importData(file: File): Promise<void> {
   if (!repository || !storage || !stateRepository || !feedSubscriptions) return;
+  const maxBackupBytes = 10 * 1024 * 1024;
+  if (file.size > maxBackupBytes) {
+    backupStatus.textContent = '恢复失败：备份文件不能超过 10 MB。';
+    return;
+  }
+  if (!window.confirm('导入会合并备份数据，并覆盖相同 ID 的本地记录。是否继续？')) {
+    backupStatus.textContent = '已取消恢复。';
+    return;
+  }
   backupStatus.textContent = '正在读取备份…';
   try {
     const payload = parseBackup(await file.text());
