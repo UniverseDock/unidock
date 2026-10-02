@@ -18,9 +18,16 @@ interface FeedSubscription extends StorageRecord {
 
 interface BackupPayload {
   contents: Content[];
-  documents: StorageRecord[];
+  documents: BackupDocument[];
   states: BackupState[];
   feeds: FeedSubscription[];
+}
+
+interface BackupDocument extends StorageRecord {
+  contentId: string;
+  version: number;
+  title: string;
+  blocks: unknown[];
 }
 
 interface BackupState extends StorageRecord {
@@ -426,40 +433,98 @@ function arrayField(value: Record<string, unknown>, key: string): unknown[] {
   return field;
 }
 
-function isContentBackup(value: unknown): boolean {
+function isContentBackup(value: unknown): value is Content {
   return isRecord(value) &&
     typeof value.id === 'string' &&
-    typeof value.type === 'string' &&
+    ['book', 'article', 'rss', 'live', 'video', 'audio', 'comic', 'document'].includes(value.type as string) &&
     typeof value.title === 'string' &&
-    typeof value.createdAt === 'number' &&
-    typeof value.updatedAt === 'number';
+    (value.subtitle === undefined || typeof value.subtitle === 'string') &&
+    (value.description === undefined || typeof value.description === 'string') &&
+    (value.cover === undefined || typeof value.cover === 'string') &&
+    (value.author === undefined || typeof value.author === 'string') &&
+    (value.tags === undefined || Array.isArray(value.tags) && value.tags.every((tag) => typeof tag === 'string')) &&
+    (value.sourceId === undefined || typeof value.sourceId === 'string') &&
+    finiteNumber(value.createdAt) &&
+    finiteNumber(value.updatedAt);
 }
 
-function isDocumentBackup(value: unknown): boolean {
+function isDocumentBackup(value: unknown): value is BackupDocument {
   return isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.contentId === 'string' &&
-    typeof value.version === 'number' &&
+    value.version === 1 &&
     typeof value.title === 'string' &&
-    Array.isArray(value.blocks);
+    Array.isArray(value.blocks) &&
+    value.blocks.every(isReaderBlock);
 }
 
 function isStateBackup(value: unknown): value is BackupState {
   return isRecord(value) &&
     typeof value.contentId === 'string' &&
     typeof value.documentId === 'string' &&
-    typeof value.documentVersion === 'number' &&
+    Number.isInteger(value.documentVersion) &&
+    (value.documentVersion as number) > 0 &&
+    (value.position === undefined || isReadingPosition(value.position)) &&
     typeof value.read === 'boolean' &&
     typeof value.starred === 'boolean' &&
-    typeof value.updatedAt === 'number';
+    finiteNumber(value.updatedAt);
 }
 
 function isFeedSubscription(value: unknown): value is FeedSubscription {
   return isRecord(value) &&
     typeof value.id === 'string' &&
     typeof value.url === 'string' &&
+    isHttpUrl(value.url) &&
     typeof value.title === 'string' &&
-    typeof value.updatedAt === 'number';
+    finiteNumber(value.updatedAt);
+}
+
+function isReaderBlock(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.type !== 'string') return false;
+  switch (value.type) {
+    case 'heading':
+      return (value.level === 1 || value.level === 2 || value.level === 3) && typeof value.text === 'string';
+    case 'paragraph':
+    case 'quote':
+      return typeof value.text === 'string' &&
+        (value.cite === undefined || typeof value.cite === 'string');
+    case 'list':
+      return typeof value.ordered === 'boolean' &&
+        Array.isArray(value.items) &&
+        value.items.every((item) => typeof item === 'string');
+    case 'code':
+      return typeof value.code === 'string' &&
+        (value.language === undefined || typeof value.language === 'string');
+    case 'image':
+      return typeof value.src === 'string' &&
+        isHttpUrl(value.src) &&
+        typeof value.alt === 'string' &&
+        (value.caption === undefined || typeof value.caption === 'string');
+    case 'divider':
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isReadingPosition(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.blockId === 'string' &&
+    Number.isInteger(value.offset) &&
+    (value.offset as number) >= 0;
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
