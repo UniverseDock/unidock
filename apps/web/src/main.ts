@@ -8,6 +8,13 @@ import {
 } from '@unidock/reader';
 import { FeedFetcher, FeedImportService } from '@unidock/rss';
 import { IndexedDBAdapter } from '@unidock/storage';
+import type { StorageCollection, StorageRecord } from '@unidock/storage';
+
+interface FeedSubscription extends StorageRecord {
+  url: string;
+  title: string;
+  updatedAt: number;
+}
 
 const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
@@ -15,6 +22,7 @@ const feedSubmit = getElement<HTMLButtonElement>('feed-submit');
 const feedRefresh = getElement<HTMLButtonElement>('feed-refresh');
 const feedImportStatus = getElement<HTMLElement>('feed-import-status');
 const feedError = getElement<HTMLElement>('feed-error');
+const feedList = getElement<HTMLUListElement>('feed-list');
 const form = getElement<HTMLFormElement>('content-form');
 const titleInput = getElement<HTMLInputElement>('title');
 const sourceInput = getElement<HTMLInputElement>('sourceId');
@@ -41,6 +49,7 @@ let repository: StorageContentRepository | undefined;
 let documentRepository: StorageDocumentRepository | undefined;
 let stateRepository: StorageReadingStateRepository | undefined;
 let feedImportService: FeedImportService | undefined;
+let feedSubscriptions: StorageCollection<FeedSubscription> | undefined;
 let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
@@ -49,12 +58,14 @@ let savePositionTimer: number | undefined;
 async function start(): Promise<void> {
   try {
     const storage = await adapter.create();
+    feedSubscriptions = storage.collection<FeedSubscription>('feed-subscriptions');
     repository = new StorageContentRepository(storage);
     documentRepository = new StorageDocumentRepository(storage);
     stateRepository = new StorageReadingStateRepository(storage);
     feedImportService = new FeedImportService(repository, documentRepository, new FeedFetcher());
     connectionStatus.textContent = '已连接到本地存储';
     await renderContents();
+    await renderFeedSubscriptions();
   } catch (error) {
     connectionStatus.textContent = '连接失败';
     showError(listError, toErrorMessage(error));
@@ -69,6 +80,14 @@ feedForm.addEventListener('submit', (event) => {
 
 feedRefresh.addEventListener('click', () => {
   void importFeed(true);
+});
+
+feedList.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLButtonElement) || target.dataset.action !== 'refresh-feed') return;
+  const url = target.dataset.feedUrl;
+  if (!url) return;
+  void refreshFeed({ id: `feed:${url}`, url, title: '', updatedAt: 0 });
 });
 
 form.addEventListener('submit', (event) => {
@@ -157,7 +176,12 @@ async function saveContent(): Promise<void> {
 }
 
 async function importFeed(refresh = false): Promise<void> {
-  if (!feedImportService) return;
+  if (!feedImportService || !feedSubscriptions) return;
+  const feedUrl = feedUrlInput.value.trim();
+  if (!feedUrl) {
+    showError(feedError, 'Feed URL 不能为空。');
+    return;
+  }
   hideError(feedError);
   feedSubmit.disabled = true;
   feedRefresh.disabled = true;
@@ -165,10 +189,12 @@ async function importFeed(refresh = false): Promise<void> {
 
   try {
     const result = await feedImportService.importFromUrl({
-      feedUrl: feedUrlInput.value.trim()
+      feedUrl
     });
+    await saveFeedSubscription(feedUrl, result.feed.title);
     feedImportStatus.textContent = `${refresh ? '已重新抓取' : '已导入'} ${result.contents.length} 篇：${result.feed.title}`;
     await renderContents();
+    await renderFeedSubscriptions();
   } catch (error) {
     feedImportStatus.textContent = '导入失败';
     showError(feedError, toErrorMessage(error));
@@ -176,6 +202,50 @@ async function importFeed(refresh = false): Promise<void> {
     feedSubmit.disabled = false;
     feedRefresh.disabled = false;
   }
+}
+
+async function refreshFeed(feed: FeedSubscription): Promise<void> {
+  feedUrlInput.value = feed.url;
+  await importFeed(true);
+}
+
+async function saveFeedSubscription(url: string, title: string): Promise<void> {
+  if (!feedSubscriptions) return;
+  const normalizedUrl = new URL(url).toString();
+  await feedSubscriptions.put({
+    id: `feed:${normalizedUrl}`,
+    url: normalizedUrl,
+    title,
+    updatedAt: Date.now()
+  });
+}
+
+async function renderFeedSubscriptions(): Promise<void> {
+  if (!feedSubscriptions) return;
+  const feeds = await feedSubscriptions.list();
+  feeds.sort((left, right) => right.updatedAt - left.updatedAt);
+  feedList.replaceChildren(...feeds.map(renderFeedSubscription));
+}
+
+function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
+  const item = document.createElement('li');
+  item.className = 'feed-item';
+  const details = document.createElement('div');
+  const title = document.createElement('strong');
+  title.textContent = feed.title || feed.url;
+  const url = document.createElement('span');
+  url.className = 'content-meta';
+  url.textContent = feed.url;
+  details.append(title, url);
+
+  const refresh = document.createElement('button');
+  refresh.className = 'secondary-button';
+  refresh.dataset.action = 'refresh-feed';
+  refresh.dataset.feedUrl = feed.url;
+  refresh.type = 'button';
+  refresh.textContent = '刷新';
+  item.append(details, refresh);
+  return item;
 }
 
 async function removeContent(contentId: string): Promise<void> {

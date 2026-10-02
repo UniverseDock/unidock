@@ -181,6 +181,29 @@ input:focus {
   padding: 0;
 }
 
+.feed-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.feed-item {
+  align-items: center;
+  border-top: 1px solid #e2e7ed;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-top: 0.75rem;
+}
+
+.feed-item strong,
+.feed-item .content-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 .content-item {
   align-items: center;
   border: 1px solid #e2e7ed;
