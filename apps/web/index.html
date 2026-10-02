@@ -122,7 +122,11 @@
           </div>
           <span class="muted">导出当前浏览器中的本地数据</span>
         </div>
-        <button id="export-data" class="secondary-button" type="button">导出 JSON</button>
+        <div class="form-actions">
+          <button id="export-data" class="secondary-button" type="button">导出 JSON</button>
+          <button id="import-data" class="secondary-button" type="button">导入 JSON</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
+        </div>
         <p id="backup-status" class="muted" role="status"></p>
       </section>
     </main>

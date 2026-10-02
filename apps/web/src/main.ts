@@ -16,6 +16,23 @@ interface FeedSubscription extends StorageRecord {
   updatedAt: number;
 }
 
+interface BackupPayload {
+  contents: Content[];
+  documents: StorageRecord[];
+  states: BackupState[];
+  feeds: FeedSubscription[];
+}
+
+interface BackupState extends StorageRecord {
+  contentId: string;
+  documentId: string;
+  documentVersion: number;
+  read: boolean;
+  starred: boolean;
+  updatedAt: number;
+  position?: ReadingState['position'];
+}
+
 const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
 const feedSubmit = getElement<HTMLButtonElement>('feed-submit');
@@ -46,6 +63,8 @@ const backToList = getElement<HTMLButtonElement>('back-to-list');
 const networkStatus = getElement<HTMLElement>('network-status');
 const appUpdateStatus = getElement<HTMLElement>('app-update-status');
 const exportDataButton = getElement<HTMLButtonElement>('export-data');
+const importDataButton = getElement<HTMLButtonElement>('import-data');
+const importFileInput = getElement<HTMLInputElement>('import-file');
 const backupStatus = getElement<HTMLElement>('backup-status');
 
 if ('serviceWorker' in navigator) {
@@ -160,6 +179,16 @@ form.addEventListener('submit', (event) => {
 
 exportDataButton.addEventListener('click', () => {
   void exportData();
+});
+
+importDataButton.addEventListener('click', () => {
+  importFileInput.click();
+});
+
+importFileInput.addEventListener('change', () => {
+  const file = importFileInput.files?.[0];
+  importFileInput.value = '';
+  if (file) void importData(file);
 });
 
 list.addEventListener('click', (event) => {
@@ -335,6 +364,97 @@ async function exportData(): Promise<void> {
   } catch (error) {
     backupStatus.textContent = `导出失败：${toErrorMessage(error)}`;
   }
+}
+
+async function importData(file: File): Promise<void> {
+  if (!repository || !storage || !stateRepository || !feedSubscriptions) return;
+  backupStatus.textContent = '正在读取备份…';
+  try {
+    const payload = parseBackup(await file.text());
+    const documents = storage.collection('reader-documents');
+    const states = storage.collection('reader-state');
+    for (const content of payload.contents) await repository.save(content);
+    for (const document of payload.documents) await documents.put(document);
+    for (const state of payload.states) {
+      const { id: _storageId, ...readingState } = state;
+      await stateRepository.save(readingState as ReadingState);
+    }
+    for (const feed of payload.feeds) await feedSubscriptions.put(feed);
+    await renderContents();
+    await renderFeedSubscriptions();
+    backupStatus.textContent = `已恢复 ${payload.contents.length} 条内容和 ${payload.feeds.length} 个 Feed。`;
+  } catch (error) {
+    backupStatus.textContent = `恢复失败：${toErrorMessage(error)}`;
+  }
+}
+
+function parseBackup(text: string): BackupPayload {
+  const value: unknown = JSON.parse(text);
+  if (!isRecord(value) || value.format !== 'unidock-backup' || value.version !== 1) {
+    throw new Error('不是受支持的 UniDock 备份文件。');
+  }
+  const contents = arrayField(value, 'contents');
+  const documents = arrayField(value, 'documents');
+  const states = arrayField(value, 'states');
+  const feeds = arrayField(value, 'feeds');
+  if (!contents.every(isContentBackup) ||
+      !documents.every(isDocumentBackup) ||
+      !states.every(isStateBackup) ||
+      !feeds.every(isFeedSubscription)) {
+    throw new Error('备份文件包含无效数据。');
+  }
+  return {
+    contents: contents as BackupPayload['contents'],
+    documents: documents as BackupPayload['documents'],
+    states: states as BackupPayload['states'],
+    feeds: feeds as BackupPayload['feeds']
+  };
+}
+
+function arrayField(value: Record<string, unknown>, key: string): unknown[] {
+  const field = value[key];
+  if (!Array.isArray(field)) throw new Error(`备份缺少 ${key} 数组。`);
+  return field;
+}
+
+function isContentBackup(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.type === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.createdAt === 'number' &&
+    typeof value.updatedAt === 'number';
+}
+
+function isDocumentBackup(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.contentId === 'string' &&
+    typeof value.version === 'number' &&
+    typeof value.title === 'string' &&
+    Array.isArray(value.blocks);
+}
+
+function isStateBackup(value: unknown): value is BackupState {
+  return isRecord(value) &&
+    typeof value.contentId === 'string' &&
+    typeof value.documentId === 'string' &&
+    typeof value.documentVersion === 'number' &&
+    typeof value.read === 'boolean' &&
+    typeof value.starred === 'boolean' &&
+    typeof value.updatedAt === 'number';
+}
+
+function isFeedSubscription(value: unknown): value is FeedSubscription {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.updatedAt === 'number';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
 }
 
 function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
