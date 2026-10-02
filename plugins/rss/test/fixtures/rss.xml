@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/">
+  <channel>
+    <title>UniDock Journal</title>
+    <link>https://example.com/site</link>
+    <description><![CDATA[<p>Local first notes.</p>]]></description>
+    <item>
+      <title>First article</title>
+      <link>/articles/first</link>
+      <guid>article-first</guid>
+      <description><![CDATA[<p>Summary</p>]]></description>
+      <content:encoded><![CDATA[<p>Full content</p>]]></content:encoded>
+      <dc:creator>Author One</dc:creator>
+      <pubDate>Tue, 01 Oct 2024 12:00:00 GMT</pubDate>
+      <category>tech</category>
+      <category>reading</category>
+      <media:content url="/images/first.png" type="image/png" />
+    </item>
+  </channel>
+</rss>
