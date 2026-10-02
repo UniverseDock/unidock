@@ -113,6 +113,11 @@ h2 {
   white-space: nowrap;
 }
 
+.status.offline {
+  background: #fff4df;
+  color: #9a5b00;
+}
+
 form {
   display: grid;
   gap: 0.9rem;

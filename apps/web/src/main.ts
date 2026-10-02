@@ -43,10 +43,16 @@ const readerState = getElement<HTMLElement>('reader-state');
 const toggleRead = getElement<HTMLButtonElement>('toggle-read');
 const toggleStarred = getElement<HTMLButtonElement>('toggle-starred');
 const backToList = getElement<HTMLButtonElement>('back-to-list');
+const networkStatus = getElement<HTMLElement>('network-status');
+const appUpdateStatus = getElement<HTMLElement>('app-update-status');
 
 if ('serviceWorker' in navigator) {
-  void navigator.serviceWorker.register('./sw.js');
+  void registerServiceWorker();
 }
+
+window.addEventListener('online', renderNetworkStatus);
+window.addEventListener('offline', renderNetworkStatus);
+renderNetworkStatus();
 
 const adapter = new IndexedDBAdapter({ databaseName: 'unidock' });
 let repository: StorageContentRepository | undefined;
@@ -58,6 +64,36 @@ let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
 let savePositionTimer: number | undefined;
+
+async function registerServiceWorker(): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker.register('./sw.js');
+    if (registration.waiting) showUpdateStatus();
+    registration.addEventListener('updatefound', () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateStatus();
+        }
+      });
+    });
+  } catch {
+    appUpdateStatus.textContent = '离线缓存暂不可用';
+    appUpdateStatus.hidden = false;
+  }
+}
+
+function renderNetworkStatus(): void {
+  const online = navigator.onLine;
+  networkStatus.textContent = online ? '在线' : '离线模式';
+  networkStatus.classList.toggle('offline', !online);
+}
+
+function showUpdateStatus(): void {
+  appUpdateStatus.textContent = '发现新版本，刷新页面后生效。';
+  appUpdateStatus.hidden = false;
+}
 
 async function start(): Promise<void> {
   try {
