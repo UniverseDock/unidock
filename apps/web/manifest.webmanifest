@@ -7,5 +7,12 @@
   "display": "standalone",
   "theme_color": "#315efb",
   "background_color": "#f4f6f8",
-  "icons": []
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
 }

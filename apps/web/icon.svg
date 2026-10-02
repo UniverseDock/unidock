@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-labelledby="title">
+  <title>UniDock</title>
+  <rect width="192" height="192" rx="42" fill="#315efb"/>
+  <path d="M48 62h96v18H48zM48 87h70v18H48zM48 112h48v18H48z" fill="#fff"/>
+  <circle cx="143" cy="121" r="17" fill="#9db2ff"/>
+</svg>
