@@ -7,6 +7,7 @@ export {
   FeedHttpError,
   FeedResponseTooLargeError
 } from './fetcher.js';
+export { FeedImportService } from './service.js';
 export { feedItemToArticle, importFeedItems } from './importer.js';
 export {
   feedItemToDocument,
