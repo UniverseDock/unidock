@@ -94,6 +94,7 @@ async function runWeb(page, baseUrl) {
   await page.locator('#content-status-filter').selectOption('starred');
   await text(page, '#content-list', title);
   await page.locator('#content-search').fill('does-not-match');
+  await text(page, '#empty-state', '没有符合当前筛选条件的内容');
   await page.waitForFunction(() =>
     document.querySelector('#content-list')?.textContent === ''
   );
@@ -103,6 +104,8 @@ async function runWeb(page, baseUrl) {
   await openContent(page);
   await text(page, '#reader-state', '已读');
   await text(page, '#reader-state', '已收藏');
+  await page.keyboard.press('Escape');
+  await text(page, '#content-list', title);
 }
 
 async function runBrowserRestart(page, baseUrl) {

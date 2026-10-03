@@ -414,6 +414,12 @@ backToList.addEventListener('click', () => {
   list.closest('.panel')?.removeAttribute('hidden');
 });
 
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || readerPanel.hidden) return;
+  event.preventDefault();
+  backToList.click();
+});
+
 toggleRead.addEventListener('click', () => {
   void updateActiveState({ read: !activeState?.read });
 });
@@ -690,6 +696,9 @@ async function renderContents(): Promise<void> {
       renderContent(content, stateByContentId.get(content.id))
     ));
     count.textContent = `${filtered.length} / ${contents.length} 条`;
+    emptyState.textContent = contents.length === 0
+      ? '还没有本地内容，先添加一条吧。'
+      : '没有符合当前筛选条件的内容。';
     emptyState.hidden = filtered.length !== 0;
   } catch (error) {
     showError(listError, toErrorMessage(error));
