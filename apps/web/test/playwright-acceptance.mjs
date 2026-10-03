@@ -29,7 +29,7 @@ try {
   await runStorage(page, baseUrl);
   await runWeb(page, baseUrl);
   await runStorageRetry(context, baseUrl);
-  await runRss(page, baseUrl);
+  await runRss(page, baseUrl, server);
   await runBackup(page, baseUrl);
   await runUpdate(page, baseUrl, server, context);
   await runOffline(page, baseUrl, server);
@@ -166,7 +166,7 @@ async function runBackup(page, baseUrl) {
   await text(page, '#reader-state', '已收藏');
 }
 
-async function runRss(page, baseUrl) {
+async function runRss(page, baseUrl, staticServer) {
   await page.locator('#back-to-list').click();
   const feedUrl = `${baseUrl}/acceptance/feed.xml`;
   await page.locator('#feed-url').fill(feedUrl);
@@ -176,7 +176,11 @@ async function runRss(page, baseUrl) {
   await text(page, '#content-list', 'First article');
 
   const feedItem = page.locator('#feed-list li').filter({ hasText: 'UniDock Journal' });
+  staticServer.failNextFeedRequest();
   await feedItem.getByRole('button', { name: '刷新' }).click();
+  await text(page, '#feed-import-status', '重新抓取失败');
+  await text(page, '#feed-list', 'UniDock Journal');
+  await page.getByRole('button', { name: '重试' }).click();
   await text(page, '#feed-import-status', '已重新抓取 1 篇：UniDock Journal');
   await feedItem.getByRole('button', { name: '移除' }).click();
   await text(page, '#feed-import-status', '已移除 Feed 订阅');
@@ -254,6 +258,7 @@ async function availablePort() {
 
 async function startServer(port) {
   let serviceWorkerVersion = 4;
+  let failNextFeed = false;
   const feedFixture = await readFile(
     resolve(repoRoot, 'plugins/rss/test/fixtures/rss.xml')
   );
@@ -264,6 +269,12 @@ async function startServer(port) {
         `http://${request.headers.host}`
       ).pathname);
       if (requestPath === '/acceptance/feed.xml') {
+        if (failNextFeed) {
+          failNextFeed = false;
+          response.writeHead(503, { 'Cache-Control': 'no-store' });
+          response.end('Injected feed failure');
+          return;
+        }
         response.writeHead(200, {
           'Access-Control-Allow-Origin': '*',
           'Content-Type': 'application/rss+xml; charset=utf-8',
@@ -313,6 +324,9 @@ async function startServer(port) {
   });
   httpServer.setServiceWorkerVersion = (version) => {
     serviceWorkerVersion = version;
+  };
+  httpServer.failNextFeedRequest = () => {
+    failNextFeed = true;
   };
   return httpServer;
 }

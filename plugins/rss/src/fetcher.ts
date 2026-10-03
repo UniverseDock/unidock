@@ -38,13 +38,16 @@ export class FeedFetcher {
     options: FetchFeedOptions & { accept: string }
   ): Promise<string> {
     validateUrl(url);
+    const requestUrl = new URL(url);
+    requestUrl.searchParams.set('_unidock_fetch', String(Date.now()));
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new FeedFetchTimeoutError(url)), this.timeoutMs);
     const detachAbort = forwardAbort(options.signal, controller);
 
     try {
-      const response = await this.fetchImpl(url, {
+      const response = await this.fetchImpl(requestUrl.toString(), {
         headers: { accept: options.accept },
+        cache: 'no-store',
         signal: controller.signal
       });
       if (!response.ok) {

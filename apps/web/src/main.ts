@@ -22,6 +22,7 @@ const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
 const feedSubmit = getElement<HTMLButtonElement>('feed-submit');
 const feedRefresh = getElement<HTMLButtonElement>('feed-refresh');
+const feedRetry = getElement<HTMLButtonElement>('feed-retry');
 const feedImportStatus = getElement<HTMLElement>('feed-import-status');
 const feedError = getElement<HTMLElement>('feed-error');
 const feedList = getElement<HTMLUListElement>('feed-list');
@@ -68,6 +69,7 @@ let stateRepository: StorageReadingStateRepository | undefined;
 let feedImportService: FeedImportService | undefined;
 let feedSubscriptions: StorageCollection<FeedSubscription> | undefined;
 let contentLifecycle: ContentLifecycle | undefined;
+let failedFeedRetry: { url: string; refresh: boolean } | undefined;
 let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
@@ -345,6 +347,12 @@ feedRefresh.addEventListener('click', () => {
   void importFeed(true);
 });
 
+feedRetry.addEventListener('click', () => {
+  const retry = failedFeedRetry;
+  if (!retry) return;
+  void importFeed(retry.refresh);
+});
+
 feedList.addEventListener('click', (event) => {
   const target = event.target;
   if (!(target instanceof HTMLButtonElement) || target.dataset.action !== 'refresh-feed') return;
@@ -475,6 +483,8 @@ async function importFeed(refresh = false): Promise<void> {
     return;
   }
   hideError(feedError);
+  failedFeedRetry = undefined;
+  feedRetry.hidden = true;
   feedSubmit.disabled = true;
   feedRefresh.disabled = true;
   feedImportStatus.textContent = refresh ? '正在重新抓取…' : '正在抓取和导入…';
@@ -488,7 +498,9 @@ async function importFeed(refresh = false): Promise<void> {
     await renderContents();
     await renderFeedSubscriptions();
   } catch (error) {
-    feedImportStatus.textContent = '导入失败';
+    failedFeedRetry = { url: feedUrl, refresh };
+    feedImportStatus.textContent = `${refresh ? '重新抓取失败' : '导入失败'}，可以重试`;
+    feedRetry.hidden = false;
     showError(feedError, toErrorMessage(error));
   } finally {
     renderNetworkStatus();

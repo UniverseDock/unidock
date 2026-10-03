@@ -28,7 +28,9 @@ test('fetches XML with an RSS Accept header', async () => {
   });
 
   assert.equal(await fetcher.fetchXml('https://example.org/feed.xml'), '<rss />');
-  assert.equal(request.input, 'https://example.org/feed.xml');
+  const feedUrl = new URL(request.input);
+  assert.equal(feedUrl.origin + feedUrl.pathname, 'https://example.org/feed.xml');
+  assert.ok(feedUrl.searchParams.has('_unidock_fetch'));
   assert.match(request.init.headers.accept, /application\/rss\+xml/);
 });
 
@@ -47,7 +49,9 @@ test('fetches article HTML with an HTML Accept header', async () => {
     await fetcher.fetchHtml('https://example.org/articles/1'),
     '<html><body>Article</body></html>'
   );
-  assert.equal(request.input, 'https://example.org/articles/1');
+  const articleUrl = new URL(request.input);
+  assert.equal(articleUrl.origin + articleUrl.pathname, 'https://example.org/articles/1');
+  assert.ok(articleUrl.searchParams.has('_unidock_fetch'));
   assert.match(request.init.headers.accept, /text\/html/);
 });
 

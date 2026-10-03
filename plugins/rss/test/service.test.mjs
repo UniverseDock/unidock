@@ -111,9 +111,10 @@ test('fetches and extracts an article when the feed only contains a summary', as
     new MemoryContentRepository(),
     async (url, init) => {
       requests.push({ url, accept: init.headers.accept });
-      return new Response(url.endsWith('/feed.xml') ? summaryFeed : articleHtml, {
+      const isFeed = new URL(url).pathname.endsWith('/feed.xml');
+      return new Response(isFeed ? summaryFeed : articleHtml, {
         status: 200,
-        headers: { 'content-type': url.endsWith('/feed.xml') ? 'application/rss+xml' : 'text/html' }
+        headers: { 'content-type': isFeed ? 'application/rss+xml' : 'text/html' }
       });
     }
   );
@@ -151,7 +152,7 @@ test('keeps the summary document when article extraction fails', async () => {
   const { service, documentRepository } = createService(
     new MemoryContentRepository(),
     async (url) => {
-      if (url.endsWith('/feed.xml')) return new Response(summaryFeed);
+      if (new URL(url).pathname.endsWith('/feed.xml')) return new Response(summaryFeed);
       throw new Error('article unavailable');
     }
   );
