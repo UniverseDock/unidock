@@ -37,6 +37,7 @@ const emptyState = getElement<HTMLElement>('empty-state');
 const formError = getElement<HTMLElement>('form-error');
 const listError = getElement<HTMLElement>('list-error');
 const connectionStatus = getElement<HTMLElement>('connection-status');
+const storageRetry = getElement<HTMLButtonElement>('storage-retry');
 const readerPanel = getElement<HTMLElement>('reader-panel');
 const readerTitle = getElement<HTMLElement>('reader-title');
 const readerDocument = getElement<HTMLElement>('reader-document');
@@ -71,6 +72,7 @@ let activeState: ReadingState | undefined;
 let savePositionTimer: number | undefined;
 let allowReload = false;
 let pendingCrossTabUpdate = false;
+let startPromise: Promise<void> | undefined;
 const updateStateKey = 'unidock-service-worker-update-state';
 const updateTabId = getUpdateTabId();
 const updateChannel = 'BroadcastChannel' in window
@@ -275,7 +277,21 @@ function handleUpdateState(state: UpdateState | undefined): void {
 }
 
 async function start(): Promise<void> {
+  if (startPromise) return startPromise;
+  startPromise = startStorage();
   try {
+    await startPromise;
+  } finally {
+    startPromise = undefined;
+  }
+}
+
+async function startStorage(): Promise<void> {
+  try {
+    storageRetry.hidden = true;
+    connectionStatus.textContent = '正在连接…';
+    hideError(listError);
+    await adapter.destroy();
     storage = await adapter.create();
     feedSubscriptions = storage.collection<FeedSubscription>('feed-subscriptions');
     repository = new StorageContentRepository(storage);
@@ -288,11 +304,23 @@ async function start(): Promise<void> {
     await renderFeedSubscriptions();
     await requestPersistentStorage();
   } catch (error) {
+    storage = undefined;
+    repository = undefined;
+    documentRepository = undefined;
+    stateRepository = undefined;
+    feedImportService = undefined;
+    feedSubscriptions = undefined;
+    contentLifecycle = undefined;
     connectionStatus.textContent = '连接失败';
     showError(listError, toErrorMessage(error));
     loading.hidden = true;
+    storageRetry.hidden = false;
   }
 }
+
+storageRetry.addEventListener('click', () => {
+  void start();
+});
 
 async function requestPersistentStorage(): Promise<void> {
   if (!navigator.storage?.persist) return;
@@ -822,6 +850,10 @@ function toErrorMessage(error: unknown): string {
       case 'request-failed':
       case 'transaction-failed':
         return '本地存储操作失败，请刷新页面后重试。';
+      case 'closed':
+        return '本地存储连接已关闭，请重试连接。';
+      case 'version-conflict':
+        return '本地存储版本不兼容，请刷新页面后重试。';
     }
   }
   if (isQuotaError(error)) {

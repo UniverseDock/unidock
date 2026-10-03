@@ -28,6 +28,7 @@ try {
 
   await runStorage(page, baseUrl);
   await runWeb(page, baseUrl);
+  await runStorageRetry(context, baseUrl);
   await runRss(page, baseUrl);
   await runBackup(page, baseUrl);
   await runUpdate(page, baseUrl, server, context);
@@ -84,6 +85,32 @@ async function runWeb(page, baseUrl) {
   await openContent(page);
   await text(page, '#reader-state', '已读');
   await text(page, '#reader-state', '已收藏');
+}
+
+async function runStorageRetry(browserContext, baseUrl) {
+  const retryPage = await browserContext.newPage();
+  await retryPage.addInitScript(() => {
+    const indexedDBFactory = globalThis.indexedDB;
+    const originalOpen = indexedDBFactory.open.bind(indexedDBFactory);
+    let failFirstOpen = true;
+    Object.defineProperty(indexedDBFactory, 'open', {
+      configurable: true,
+      value(...args) {
+        if (failFirstOpen) {
+          failFirstOpen = false;
+          throw new DOMException('Injected storage open failure', 'InvalidStateError');
+        }
+        return originalOpen(...args);
+      }
+    });
+  });
+  await retryPage.goto(`${baseUrl}${appPath}`);
+  await text(retryPage, '#connection-status', '连接失败');
+  await text(retryPage, '#list-error', '本地存储连接已关闭');
+  await retryPage.getByRole('button', { name: '重试连接' }).click();
+  await text(retryPage, '#connection-status', '已连接到本地存储');
+  await assert.equal(await retryPage.locator('#storage-retry').isHidden(), true);
+  await retryPage.close();
 }
 
 async function runBackup(page, baseUrl) {
