@@ -24,10 +24,17 @@ try {
     headless: true,
     executablePath: process.env.CHROMIUM_PATH ?? '/opt/homebrew/bin/chromium'
   });
-  const page = await context.newPage();
+  let page = await context.newPage();
 
   await runStorage(page, baseUrl);
   await runWeb(page, baseUrl);
+  await context.close();
+  context = await chromium.launchPersistentContext(profile, {
+    headless: true,
+    executablePath: process.env.CHROMIUM_PATH ?? '/opt/homebrew/bin/chromium'
+  });
+  page = await context.newPage();
+  await runBrowserRestart(page, baseUrl);
   await runStorageRetry(context, baseUrl);
   await runRss(page, baseUrl, server);
   await runBackup(page, baseUrl);
@@ -39,6 +46,7 @@ try {
     scenarios: [
       'storage',
       'web-content',
+      'browser-restart-persistence',
       'rss-import-refresh-remove',
       'backup',
       'pwa-update',
@@ -91,6 +99,15 @@ async function runWeb(page, baseUrl) {
   );
   await page.locator('#content-search').fill(title);
   await page.reload();
+  await text(page, '#content-list', title);
+  await openContent(page);
+  await text(page, '#reader-state', '已读');
+  await text(page, '#reader-state', '已收藏');
+}
+
+async function runBrowserRestart(page, baseUrl) {
+  await page.goto(`${baseUrl}${appPath}`);
+  await text(page, '#connection-status', '已连接到本地存储');
   await text(page, '#content-list', title);
   await openContent(page);
   await text(page, '#reader-state', '已读');
