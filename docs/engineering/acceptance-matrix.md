@@ -37,9 +37,9 @@ corepack pnpm --filter @unidock/web test:browser
 corepack pnpm --filter @unidock/web verify
 ```
 
-## Manual assistance only
+## Manual assistance only（当前暂缓）
 
-The following remain manual or environment-assisted:
+以下项目保留在清单中，但当前不执行、不作为 MVP 自动化基线的阻塞项：
 
 - Installed PWA experience on different operating systems and browsers.
 - Real public Feed CORS and site-specific response behavior.
