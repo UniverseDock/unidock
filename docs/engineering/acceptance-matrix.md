@@ -10,10 +10,10 @@
 | --- | --- | --- | --- |
 | Storage Adapter | IndexedDB unavailable、错误分类、adapter id、destroy | Query boundary、lifecycle、close/reopen、versionchange | Automated |
 | Content | CRUD、过滤、标签、分页、坏数据 | Web App local content persistence | Automated |
-| Reader | Document/Block、Repository、ReadingState | Open Reader、read/starred、refresh recovery | Automated |
-| RSS | RSS/Atom parser、fetcher、importer、dedup、extractor | Local CORS fixture import、refresh、subscription removal、article retention | Automated |
+| Reader | Document/Block、Repository、ReadingState | Open Reader、read/starred、refresh/restart recovery、keyboard return、empty states | Automated |
+| RSS | RSS/Atom parser、fetcher、importer、dedup、extractor、result statistics | Local CORS fixture import、refresh retry、subscription status/removal、article retention | Automated |
 | Backup | JSON format、schema、URL、reference validation | Download、delete、file import、state recovery | Automated |
-| PWA | Static manifest、cache list、update message | SW activation、waiting、user-confirmed update、data retention、offline reload | Automated |
+| PWA | Static manifest、cache list、update message | SW activation、waiting、user-confirmed update、multi-tab coordination、browser restart、data retention、offline reload | Automated |
 | Build quality | TypeScript and package builds | Playwright acceptance runner | Automated |
 
 ## Commands
@@ -42,9 +42,8 @@ corepack pnpm --filter @unidock/web verify
 The following remain manual or environment-assisted:
 
 - Installed PWA experience on different operating systems and browsers.
-- Browser restart and first cold start in a newly opened tab.
 - Real public Feed CORS and site-specific response behavior.
 - Storage quota and browser eviction policies.
-- Accessibility and responsive visual review.
+- Cross-browser accessibility and responsive visual review.
 
 Manual checks are supplementary evidence; they must not replace the automated pipeline for existing functionality.

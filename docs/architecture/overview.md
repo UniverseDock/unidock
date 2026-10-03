@@ -72,9 +72,9 @@ apps/web
 
 ## 4. 架构判断
 
-- **已实现**：Local First 阅读 MVP 的主链路。
-- **部分实现**：PWA 更新、跨集合数据一致性、备份恢复原子性、存储查询语义。
+- **已实现基础范围**：Local First 阅读 MVP、PWA 更新接管、离线冷启动、浏览器重启恢复、Storage 错误恢复、Feed 刷新状态和 Web/Reader 基础可用性。
+- **部分实现**：跨集合数据一致性和备份恢复仍采用应用级补偿，不承诺原子性；PWA 资源清单仍有手工维护风险。
+- **持续验证**：不同浏览器、PWA 安装形态、真实配额和浏览器存储清理。
 - **设计中**：Plugin Runtime、Capability、Permission。
 - **未来规划**：Sync、Remote Storage、Job/Pipeline、Agent。
 - **暂缓**：Marketplace、远程插件、CRDT、SQLite/WASM、云端数据库。
-
