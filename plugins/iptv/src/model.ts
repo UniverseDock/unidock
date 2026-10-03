@@ -3,6 +3,7 @@ export interface Playlist {
   name: string;
   source?: string;
   updatedAt: number;
+  lastError?: string;
 }
 
 export interface Channel {
@@ -40,4 +41,11 @@ export interface ParsePlaylistResult {
   playlist: Playlist;
   channels: Channel[];
   diagnostics: PlaylistDiagnostic[];
+}
+
+export interface ChannelQuery {
+  playlistId?: string;
+  group?: string;
+  limit?: number;
+  offset?: number;
 }

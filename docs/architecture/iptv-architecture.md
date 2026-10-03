@@ -2,18 +2,19 @@
 
 ## Status
 
-状态：**设计中，尚未接入产品运行时。**
+状态：**解析器和独立频道目录层已实现，尚未接入 Web 产品运行时。**
 
-当前仓库没有 `plugins/iptv`，也没有播放器实现、M3U 解析器或 Player Runtime。本文定义下一阶段的稳定边界，不代表功能已经实现。
+当前仓库已包含 `plugins/iptv`，提供 M3U/M3U8 解析器和基于现有 Storage API 的 Playlist/Channel Repository；仍没有播放器实现或 Player Runtime。本文定义后续稳定边界，不代表 IPTV 已接入 Web 产品界面。
 
 ## 1. 第一阶段目标
 
-第一阶段只建立可验证的频道目录闭环：
+第一阶段先建立可验证的频道目录基础：
 
 ```text
 M3U / M3U8 text
   → Playlist Parser
   → Channel[]
+  → Playlist/Channel Repository
   → Channel List
   → Player Capability contract
 ```
@@ -118,7 +119,7 @@ interface Playlist {
 
 ## 5. 第一阶段验收
 
-在实现 `plugins/iptv` 前，至少需要：
+在接入 Web 层前，至少需要：
 
 1. RSS/Reader 现有自动化基线继续通过。
 2. M3U fixture 可以解析为稳定 Channel 列表。
@@ -128,6 +129,19 @@ interface Playlist {
 6. 不同 Playlist 的相同频道不会无意覆盖。
 7. 解析器 Node 测试不依赖浏览器或播放器。
 8. Web 层只在 Player Capability 存在时展示播放操作。
+
+当前已完成：
+
+- `plugins/iptv` 独立包和 workspace 构建接入。
+- M3U/M3U8 解析、字段提取、危险协议拒绝和稳定 ID。
+- 基于现有 `@unidock/storage` 的 Playlist/Channel Repository。
+- Playlist 替换、删除和失败补偿测试。
+
+当前未完成：
+
+- Web Channel List UI。
+- Player Capability 和播放器实现。
+- 远程 Playlist 抓取、EPG、播放历史和同步。
 
 ## 6. 暂不实现
 
@@ -148,4 +162,3 @@ interface Playlist {
 - Player Capability 的宿主边界已确定。
 - URL 协议、CORS 和安全策略已确定。
 - 至少准备一组本地 fixture 和真实浏览器验收方案。
-

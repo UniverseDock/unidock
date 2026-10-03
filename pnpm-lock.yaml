@@ -219,6 +219,12 @@ importers:
 
   packages/storage: {}
 
+  plugins/iptv:
+    dependencies:
+      '@unidock/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
   plugins/rss:
     dependencies:
       '@unidock/content':
