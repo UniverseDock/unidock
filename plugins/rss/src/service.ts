@@ -12,6 +12,9 @@ export interface FeedImportResult {
   feed: Feed;
   contents: Content[];
   documents: ReaderDocument[];
+  added: number;
+  updated: number;
+  unchanged: number;
 }
 
 export interface ExtractedArticle {
@@ -33,6 +36,9 @@ export class FeedImportService {
     const feed = parseFeed(xml, options);
     const contents: Content[] = [];
     const documents: ReaderDocument[] = [];
+    let added = 0;
+    let updated = 0;
+    let unchanged = 0;
 
     for (const item of feed.items) {
       const nextContent = feedItemToArticle(item);
@@ -44,6 +50,13 @@ export class FeedImportService {
             updatedAt: Math.max(existingContent.updatedAt, nextContent.updatedAt)
           }
         : nextContent;
+      if (!existingContent) {
+        added += 1;
+      } else if (nextContent.updatedAt > existingContent.updatedAt) {
+        updated += 1;
+      } else {
+        unchanged += 1;
+      }
       await this.contentRepository.save(content);
       const document = await this.createDocument(item, content, options);
       await this.documentRepository.save(document);
@@ -51,7 +64,7 @@ export class FeedImportService {
       documents.push(document);
     }
 
-    return { feed, contents, documents };
+    return { feed, contents, documents, added, updated, unchanged };
   }
 
   private async createDocument(

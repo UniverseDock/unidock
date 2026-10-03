@@ -188,7 +188,7 @@ async function runRss(page, baseUrl, staticServer) {
   const feedUrl = `${baseUrl}/acceptance/feed.xml`;
   await page.locator('#feed-url').fill(feedUrl);
   await page.getByRole('button', { name: '导入 Feed' }).click();
-  await text(page, '#feed-import-status', '已导入 1 篇：UniDock Journal');
+  await text(page, '#feed-import-status', '已导入 1 篇：UniDock Journal（新增 1，更新 0，未变化 0）');
   await text(page, '#feed-list', 'UniDock Journal');
   await text(page, '#content-list', 'First article');
 
@@ -197,8 +197,10 @@ async function runRss(page, baseUrl, staticServer) {
   await feedItem.getByRole('button', { name: '刷新' }).click();
   await text(page, '#feed-import-status', '重新抓取失败');
   await text(page, '#feed-list', 'UniDock Journal');
+  await text(page, '#feed-list', '最近失败');
   await page.getByRole('button', { name: '重试' }).click();
-  await text(page, '#feed-import-status', '已重新抓取 1 篇：UniDock Journal');
+  await text(page, '#feed-import-status', '已重新抓取 1 篇：UniDock Journal（新增 0，更新 0，未变化 1）');
+  await text(page, '#feed-list', '最近成功');
   await feedItem.getByRole('button', { name: '移除' }).click();
   await text(page, '#feed-import-status', '已移除 Feed 订阅');
   await page.waitForFunction(() =>

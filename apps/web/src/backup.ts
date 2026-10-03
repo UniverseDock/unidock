@@ -6,6 +6,8 @@ export interface FeedSubscription extends StorageRecord {
   url: string;
   title: string;
   updatedAt: number;
+  lastAttemptedAt?: number;
+  lastError?: string;
 }
 
 export interface BackupDocument extends StorageRecord {
@@ -196,7 +198,9 @@ function isFeedSubscription(value: unknown): value is FeedSubscription {
     typeof value.url === 'string' &&
     isHttpUrl(value.url) &&
     typeof value.title === 'string' &&
-    finiteNumber(value.updatedAt);
+    finiteNumber(value.updatedAt) &&
+    (value.lastAttemptedAt === undefined || finiteNumber(value.lastAttemptedAt)) &&
+    (value.lastError === undefined || typeof value.lastError === 'string');
 }
 
 function isReaderBlock(value: unknown): boolean {

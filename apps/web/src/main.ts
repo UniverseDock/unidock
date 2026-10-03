@@ -494,13 +494,15 @@ async function importFeed(refresh = false): Promise<void> {
       feedUrl
     });
     await saveFeedSubscription(feedUrl, result.feed.title);
-    feedImportStatus.textContent = `${refresh ? '已重新抓取' : '已导入'} ${result.contents.length} 篇：${result.feed.title}`;
+    feedImportStatus.textContent = formatFeedResult(refresh, result);
     await renderContents();
     await renderFeedSubscriptions();
   } catch (error) {
     failedFeedRetry = { url: feedUrl, refresh };
     feedImportStatus.textContent = `${refresh ? '重新抓取失败' : '导入失败'}，可以重试`;
     feedRetry.hidden = false;
+    await saveFeedFailure(feedUrl, toErrorMessage(error));
+    await renderFeedSubscriptions();
     showError(feedError, toErrorMessage(error));
   } finally {
     renderNetworkStatus();
@@ -519,7 +521,20 @@ async function saveFeedSubscription(url: string, title: string): Promise<void> {
     id: `feed:${normalizedUrl}`,
     url: normalizedUrl,
     title,
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    lastAttemptedAt: Date.now()
+  });
+}
+
+async function saveFeedFailure(url: string, message: string): Promise<void> {
+  if (!feedSubscriptions) return;
+  const normalizedUrl = new URL(url).toString();
+  const existing = await feedSubscriptions.get(`feed:${normalizedUrl}`);
+  if (!existing) return;
+  await feedSubscriptions.put({
+    ...existing,
+    lastAttemptedAt: Date.now(),
+    lastError: message
   });
 }
 
@@ -603,7 +618,12 @@ function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
   const url = document.createElement('span');
   url.className = 'content-meta';
   url.textContent = feed.url;
-  details.append(title, url);
+  const status = document.createElement('span');
+  status.className = 'content-meta';
+  status.textContent = feed.lastError
+    ? `最近失败：${feed.lastError}`
+    : `最近成功：${new Date(feed.updatedAt).toLocaleString()}`;
+  details.append(title, url, status);
 
   const refresh = document.createElement('button');
   refresh.className = 'secondary-button';
@@ -622,6 +642,19 @@ function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
   actions.append(refresh, remove);
   item.append(details, actions);
   return item;
+}
+
+function formatFeedResult(
+  refresh: boolean,
+  result: {
+    feed: { title: string };
+    contents: unknown[];
+    added: number;
+    updated: number;
+    unchanged: number;
+  }
+): string {
+  return `${refresh ? '已重新抓取' : '已导入'} ${result.contents.length} 篇：${result.feed.title}（新增 ${result.added}，更新 ${result.updated}，未变化 ${result.unchanged}）`;
 }
 
 async function removeContent(contentId: string): Promise<void> {

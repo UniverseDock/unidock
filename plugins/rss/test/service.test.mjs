@@ -77,6 +77,10 @@ test('imports fetched RSS items into Content and Reader documents', async () => 
   assert.equal(result.feed.title, 'UniDock Journal');
   assert.equal(result.contents.length, 1);
   assert.equal(result.documents.length, 1);
+  assert.deepEqual(
+    { added: result.added, updated: result.updated, unchanged: result.unchanged },
+    { added: 1, updated: 0, unchanged: 0 }
+  );
   assert.equal((await contentRepository.list()).length, 1);
   assert.equal((await documentRepository.getByContentId('feed:rss::article-first'))?.blocks.length, 1);
 });
@@ -123,9 +127,17 @@ test('fetches and extracts an article when the feed only contains a summary', as
     feedUrl: 'https://example.com/feed.xml',
     feedId: 'feed:summary'
   });
+  const second = await service.importFromUrl({
+    feedUrl: 'https://example.com/feed.xml',
+    feedId: 'feed:summary'
+  });
   const document = await documentRepository.getByContentId(result.contents[0].id);
 
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 4);
+  assert.deepEqual(
+    { added: second.added, updated: second.updated, unchanged: second.unchanged },
+    { added: 0, updated: 0, unchanged: 1 }
+  );
   assert.match(requests[0].accept, /application\/rss\+xml/);
   assert.match(requests[1].accept, /text\/html/);
   assert.deepEqual(document.blocks.map(({ type, text }) => ({ type, text })), [
