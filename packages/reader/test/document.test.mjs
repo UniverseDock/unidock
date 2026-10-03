@@ -60,3 +60,7 @@ test('rejects unknown or malformed blocks', () => {
     /Invalid Reader block/
   );
 });
+
+test('keeps the current document schema version explicit', () => {
+  assert.equal(DOCUMENT_VERSION, 1);
+});

@@ -26,6 +26,10 @@ if (!serviceWorker.includes('SKIP_WAITING')) {
   throw new Error('Service Worker must support a SKIP_WAITING update message.');
 }
 
+if (!serviceWorker.includes('clients.claim()')) {
+  throw new Error('Service Worker must claim existing clients after activation.');
+}
+
 for (const icon of manifest.icons) {
   if (typeof icon.src !== 'string' || !icon.src.startsWith('./')) {
     throw new Error(`PWA icon must use a relative path: ${icon.src}`);

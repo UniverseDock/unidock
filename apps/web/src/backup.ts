@@ -35,6 +35,25 @@ export interface BackupPayload {
   feeds: FeedSubscription[];
 }
 
+export type BackupParseErrorCode =
+  | 'invalid-json'
+  | 'invalid-envelope'
+  | 'missing-version'
+  | 'invalid-version'
+  | 'unsupported-version'
+  | 'invalid-payload';
+
+export class BackupParseError extends Error {
+  constructor(
+    readonly code: BackupParseErrorCode,
+    message: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options);
+    this.name = 'BackupParseError';
+  }
+}
+
 export function createBackupPayload(
   contents: Content[],
   documents: BackupDocument[],
@@ -58,10 +77,22 @@ export function parseBackup(text: string): BackupPayload {
   try {
     value = JSON.parse(text);
   } catch {
-    throw new Error('备份文件不是有效的 JSON。');
+    throw new BackupParseError('invalid-json', '备份文件不是有效的 JSON。');
   }
-  if (!isRecord(value) || value.format !== 'unidock-backup' || value.version !== 1) {
-    throw new Error('不是受支持的 UniDock 备份文件。');
+  if (!isRecord(value) || value.format !== 'unidock-backup') {
+    throw new BackupParseError('invalid-envelope', '不是有效的 UniDock 备份文件封套。');
+  }
+  if (!Object.prototype.hasOwnProperty.call(value, 'version')) {
+    throw new BackupParseError('missing-version', '备份文件缺少版本号。');
+  }
+  if (!Number.isInteger(value.version) || (value.version as number) < 0) {
+    throw new BackupParseError('invalid-version', '备份文件的版本号无效。');
+  }
+  if (value.version !== 1) {
+    throw new BackupParseError(
+      'unsupported-version',
+      `备份文件版本 ${String(value.version)} 暂不受支持，请使用 Backup v1 文件。`
+    );
   }
   const contents = arrayField(value, 'contents');
   const documents = arrayField(value, 'documents');
@@ -73,7 +104,7 @@ export function parseBackup(text: string): BackupPayload {
       !feeds.every(isFeedSubscription) ||
       !isIsoDate(value.exportedAt) ||
       !hasConsistentIds(contents, documents, states, feeds)) {
-    throw new Error('备份文件包含无效数据。');
+    throw new BackupParseError('invalid-payload', '备份文件包含无效数据。');
   }
   return {
     format: 'unidock-backup',

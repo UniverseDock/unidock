@@ -39,6 +39,18 @@ Web App 自动验收（构建、备份测试、PWA 资源检查）：
 corepack pnpm --filter @unidock/web verify
 ```
 
+真实 Chromium 自动 Smoke 验收：
+
+```bash
+corepack pnpm --filter @unidock/web test:browser
+```
+
+完整项目验收（构建全部 workspace 后执行 Playwright）：
+
+```bash
+corepack pnpm acceptance
+```
+
 ## 本地运行 Web App
 
 ```bash
@@ -74,4 +86,4 @@ python3 -m http.server 4177 --bind 127.0.0.1
 - 跨设备同步、账号与远端代理。
 - IPTV、书籍、漫画等后续内容来源。
 
-本文件是当前事实快照，区分已实现、人工验证与未覆盖事项；详细规划见 `docs/PROJECT_PLAN.md`。
+本文件是当前事实快照，区分已实现、人工验证与未覆盖事项；产品路线见 `docs/PROJECT_PLAN.md`，架构审计与长期边界见 `docs/architecture/README.md`，工程约束见 `docs/engineering/README.md`。

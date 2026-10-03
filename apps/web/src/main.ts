@@ -7,15 +7,16 @@ import {
   type ReaderBlock
 } from '@unidock/reader';
 import { FeedFetcher, FeedImportService } from '@unidock/rss';
-import { IndexedDBAdapter } from '@unidock/storage';
+import { IndexedDBAdapter, StorageError } from '@unidock/storage';
 import type { Storage, StorageCollection, StorageRecord } from '@unidock/storage';
 import {
   createBackupPayload,
-  parseBackup,
   type BackupDocument,
   type BackupState,
   type FeedSubscription
 } from './backup.js';
+import { BackupRestoreService } from './backup-restore.js';
+import { ContentLifecycle } from './content-lifecycle.js';
 
 const feedForm = getElement<HTMLFormElement>('feed-form');
 const feedUrlInput = getElement<HTMLInputElement>('feed-url');
@@ -52,10 +53,6 @@ const importDataButton = getElement<HTMLButtonElement>('import-data');
 const importFileInput = getElement<HTMLInputElement>('import-file');
 const backupStatus = getElement<HTMLElement>('backup-status');
 
-if ('serviceWorker' in navigator) {
-  void registerServiceWorker();
-}
-
 window.addEventListener('online', renderNetworkStatus);
 window.addEventListener('offline', renderNetworkStatus);
 renderNetworkStatus();
@@ -67,15 +64,58 @@ let documentRepository: StorageDocumentRepository | undefined;
 let stateRepository: StorageReadingStateRepository | undefined;
 let feedImportService: FeedImportService | undefined;
 let feedSubscriptions: StorageCollection<FeedSubscription> | undefined;
+let contentLifecycle: ContentLifecycle | undefined;
 let activeContentId: string | undefined;
 let activeDocument: Awaited<ReturnType<StorageDocumentRepository['getByContentId']>> | undefined;
 let activeState: ReadingState | undefined;
 let savePositionTimer: number | undefined;
 let allowReload = false;
+let pendingCrossTabUpdate = false;
+const updateStateKey = 'unidock-service-worker-update-state';
+const updateTabId = getUpdateTabId();
+const updateChannel = 'BroadcastChannel' in window
+  ? new BroadcastChannel('unidock-service-worker-update')
+  : undefined;
+
+if ('serviceWorker' in navigator) {
+  void registerServiceWorker();
+}
 
 async function registerServiceWorker(): Promise<void> {
   try {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (allowReload) {
+        allowReload = false;
+        publishUpdateState('applied');
+        updateChannel?.postMessage({
+          type: 'UPDATE_APPLIED',
+          sourceTabId: updateTabId
+        });
+        window.location.reload();
+      } else if (pendingCrossTabUpdate) {
+        showReloadRequired();
+      }
+    });
+    updateChannel?.addEventListener('message', (event) => {
+      handleUpdateMessage(event.data);
+    });
+    window.addEventListener('storage', (event) => {
+      if (event.key !== updateStateKey || !event.newValue) return;
+      handleUpdateState(parseUpdateState(event.newValue));
+    });
     const registration = await navigator.serviceWorker.register('./sw.js');
+    handleUpdateState(readUpdateState());
+    const checkForUpdate = (): void => {
+      if (document.visibilityState !== 'visible') return;
+      void registration.update()
+        .then(() => {
+          if (registration.waiting) showUpdateStatus(registration);
+        })
+        .catch(() => {
+          // 更新检查失败不影响当前已安装版本继续运行。
+        });
+    };
+
     if (registration.waiting) showUpdateStatus(registration);
     registration.addEventListener('updatefound', () => {
       appUpdateStatus.hidden = true;
@@ -88,11 +128,8 @@ async function registerServiceWorker(): Promise<void> {
         }
       });
     });
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!allowReload) return;
-      allowReload = false;
-      window.location.reload();
-    });
+    document.addEventListener('visibilitychange', checkForUpdate);
+    window.addEventListener('focus', checkForUpdate);
   } catch {
     appUpdateStatus.textContent = '离线缓存暂不可用';
     appUpdateStatus.hidden = false;
@@ -117,14 +154,124 @@ function showUpdateStatus(registration: ServiceWorkerRegistration): void {
   appUpdateStatus.textContent = '发现新版本，点击立即更新。';
   appUpdateStatus.hidden = false;
   appUpdateApply.hidden = false;
+  appUpdateApply.textContent = '立即更新';
+  publishUpdateState('available');
+  updateChannel?.postMessage({
+    type: 'UPDATE_AVAILABLE',
+    sourceTabId: updateTabId
+  });
   appUpdateApply.onclick = () => {
     const worker = registration.waiting;
     if (!worker) return;
     allowReload = true;
+    publishUpdateState('applying');
+    updateChannel?.postMessage({
+      type: 'UPDATE_APPLYING',
+      sourceTabId: updateTabId
+    });
     appUpdateStatus.textContent = '正在更新…';
     appUpdateApply.hidden = true;
     worker.postMessage({ type: 'SKIP_WAITING' });
   };
+}
+
+function showPassiveUpdateStatus(): void {
+  if (!appUpdateApply.hidden) return;
+  appUpdateStatus.textContent = '发现新版本，请在其他标签页更新后刷新此页面。';
+  appUpdateStatus.hidden = false;
+}
+
+function showReloadRequired(): void {
+  appUpdateStatus.textContent = '新版本已生效，请刷新页面。';
+  appUpdateStatus.hidden = false;
+  appUpdateApply.textContent = '刷新页面';
+  appUpdateApply.hidden = false;
+  appUpdateApply.onclick = () => window.location.reload();
+}
+
+type UpdateState = {
+  status: 'available' | 'applying' | 'applied';
+  sourceTabId: string;
+  updatedAt: number;
+};
+
+function getUpdateTabId(): string {
+  const existing = window.sessionStorage.getItem('unidock-update-tab-id');
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  window.sessionStorage.setItem('unidock-update-tab-id', created);
+  return created;
+}
+
+function publishUpdateState(status: UpdateState['status']): void {
+  const state: UpdateState = {
+    status,
+    sourceTabId: updateTabId,
+    updatedAt: Date.now()
+  };
+  window.localStorage.setItem(updateStateKey, JSON.stringify(state));
+}
+
+function readUpdateState(): UpdateState | undefined {
+  const value = window.localStorage.getItem(updateStateKey);
+  return value ? parseUpdateState(value) : undefined;
+}
+
+function parseUpdateState(value: string): UpdateState | undefined {
+  try {
+    const parsed = JSON.parse(value);
+    if (
+      parsed &&
+      (parsed.status === 'available' || parsed.status === 'applying' || parsed.status === 'applied') &&
+      typeof parsed.sourceTabId === 'string' &&
+      typeof parsed.updatedAt === 'number'
+    ) {
+      return parsed;
+    }
+  } catch {
+    // Ignore malformed state left by an interrupted update attempt.
+  }
+  return undefined;
+}
+
+function handleUpdateMessage(message: unknown): void {
+  if (!message || typeof message !== 'object') return;
+  const event = message as { type?: string; sourceTabId?: string };
+  if (event.sourceTabId === updateTabId) return;
+  if (event.type === 'UPDATE_AVAILABLE') {
+    handleUpdateState({
+      status: 'available',
+      sourceTabId: event.sourceTabId ?? 'broadcast',
+      updatedAt: Date.now()
+    });
+  } else if (event.type === 'UPDATE_APPLYING') {
+    handleUpdateState({
+      status: 'applying',
+      sourceTabId: event.sourceTabId ?? 'broadcast',
+      updatedAt: Date.now()
+    });
+  } else if (event.type === 'UPDATE_APPLIED') {
+    handleUpdateState({
+      status: 'applied',
+      sourceTabId: event.sourceTabId ?? 'broadcast',
+      updatedAt: Date.now()
+    });
+  }
+}
+
+function handleUpdateState(state: UpdateState | undefined): void {
+  if (!state || state.sourceTabId === updateTabId) return;
+  if (Date.now() - state.updatedAt > 60_000) return;
+  pendingCrossTabUpdate = true;
+  if (state.status === 'applied') {
+    showReloadRequired();
+  } else if (state.status === 'applying') {
+    appUpdateStatus.textContent = '其他标签页正在更新，当前页面稍后需要刷新。';
+    appUpdateStatus.hidden = false;
+    appUpdateApply.hidden = true;
+  } else {
+    showPassiveUpdateStatus();
+  }
 }
 
 async function start(): Promise<void> {
@@ -134,6 +281,7 @@ async function start(): Promise<void> {
     repository = new StorageContentRepository(storage);
     documentRepository = new StorageDocumentRepository(storage);
     stateRepository = new StorageReadingStateRepository(storage);
+    contentLifecycle = new ContentLifecycle(repository, documentRepository, stateRepository);
     feedImportService = new FeedImportService(repository, documentRepository, new FeedFetcher());
     connectionStatus.textContent = '已连接到本地存储';
     await renderContents();
@@ -239,6 +387,7 @@ window.addEventListener('scroll', () => {
 window.addEventListener('pagehide', () => {
   void saveActivePosition();
   void adapter.destroy();
+  updateChannel?.close();
 });
 
 async function saveContent(): Promise<void> {
@@ -266,15 +415,13 @@ async function saveContent(): Promise<void> {
   };
 
   try {
-    await repository.save(content);
-    if (documentRepository) {
-      const blocks = bodyInput.value
-        .split(/\r?\n/)
-        .map((text) => text.trim())
-        .filter(Boolean)
-        .map((text) => ({ type: 'paragraph' as const, text }));
-      await documentRepository.save(createArticleDocument(content, { blocks }));
-    }
+    if (!documentRepository || !contentLifecycle) return;
+    const blocks = bodyInput.value
+      .split(/\r?\n/)
+      .map((text) => text.trim())
+      .filter(Boolean)
+      .map((text) => ({ type: 'paragraph' as const, text }));
+    await contentLifecycle.save(content, createArticleDocument(content, { blocks }));
     form.reset();
     await renderContents();
   } catch (error) {
@@ -382,16 +529,13 @@ async function importData(file: File): Promise<void> {
   }
   backupStatus.textContent = '正在读取备份…';
   try {
-    const payload = parseBackup(await file.text());
-    const documents = storage.collection('reader-documents');
-    const states = storage.collection('reader-state');
-    for (const content of payload.contents) await repository.save(content);
-    for (const document of payload.documents) await documents.put(document);
-    for (const state of payload.states) {
-      const { id: _storageId, ...readingState } = state;
-      await stateRepository.save(readingState as ReadingState);
-    }
-    for (const feed of payload.feeds) await feedSubscriptions.put(feed);
+    const documents = storage.collection<BackupDocument>('reader-documents');
+    const payload = await new BackupRestoreService({
+      contents: repository,
+      documents,
+      states: stateRepository,
+      feeds: feedSubscriptions
+    }).restoreText(await file.text());
     await renderContents();
     await renderFeedSubscriptions();
     backupStatus.textContent = `已恢复 ${payload.contents.length} 条内容和 ${payload.feeds.length} 个 Feed。`;
@@ -431,13 +575,11 @@ function renderFeedSubscription(feed: FeedSubscription): HTMLLIElement {
 }
 
 async function removeContent(contentId: string): Promise<void> {
-  if (!repository) return;
+  if (!contentLifecycle) return;
   hideError(listError);
 
   try {
-    await repository.delete(contentId);
-    await documentRepository?.delete(`document:${contentId}`);
-    await stateRepository?.delete(contentId);
+    await contentLifecycle.delete(contentId);
     await renderContents();
   } catch (error) {
     showError(listError, toErrorMessage(error));
@@ -668,6 +810,20 @@ function hideError(element: HTMLElement): void {
 }
 
 function toErrorMessage(error: unknown): string {
+  if (error instanceof StorageError) {
+    switch (error.code) {
+      case 'unavailable':
+        return '当前浏览器不支持本地存储。';
+      case 'open-blocked':
+        return '本地存储正在被其他页面占用，请关闭其他 UniDock 页面后重试。';
+      case 'quota-exceeded':
+        return '本地存储空间不足，请清理内容或导出备份后重试。';
+      case 'open-failed':
+      case 'request-failed':
+      case 'transaction-failed':
+        return '本地存储操作失败，请刷新页面后重试。';
+    }
+  }
   if (isQuotaError(error)) {
     return '本地存储空间不足，请清理内容或导出备份后重试。';
   }

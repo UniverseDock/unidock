@@ -1,5 +1,8 @@
 import type { Storage, StorageAdapter } from '../types.js';
+import { StorageError, toStorageError } from '../errors.js';
 import { IndexedDBStorage } from './storage.js';
+
+export const INDEXEDDB_SCHEMA_VERSION = 1;
 
 export interface IndexedDBAdapterOptions {
   databaseName?: string;
@@ -15,10 +18,22 @@ export class IndexedDBAdapter implements StorageAdapter {
   async create(): Promise<Storage> {
     const factory = this.options.indexedDB ?? globalThis.indexedDB;
     if (!factory) {
-      throw new Error('IndexedDB is not available in this environment.');
+      throw new StorageError(
+        'IndexedDB is not available in this environment.',
+        'unavailable',
+        'open'
+      );
     }
 
-    const request = factory.open(this.options.databaseName ?? 'unidock', 1);
+    let request: IDBOpenDBRequest;
+    try {
+      request = factory.open(
+        this.options.databaseName ?? 'unidock',
+        INDEXEDDB_SCHEMA_VERSION
+      );
+    } catch (error) {
+      throw toStorageError(error, 'open', 'open-failed');
+    }
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains('records')) {
@@ -41,10 +56,31 @@ export class IndexedDBAdapter implements StorageAdapter {
   }
 }
 
-function requestToPromise<T>(request: IDBOpenDBRequest): Promise<IDBDatabase> {
+function requestToPromise(request: IDBOpenDBRequest): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('Unable to open IndexedDB.'));
-    request.onblocked = () => reject(new Error('Opening the UniDock database was blocked.'));
+    let settled = false;
+    request.onsuccess = () => {
+      const database = request.result;
+      if (settled) {
+        database?.close();
+        return;
+      }
+      settled = true;
+      resolve(database);
+    };
+    request.onerror = () => reject(toStorageError(
+      request.error ?? new Error('Unable to open IndexedDB.'),
+      'open',
+      'open-failed'
+    ));
+    request.onblocked = () => {
+      if (settled) return;
+      settled = true;
+      reject(new StorageError(
+        'Opening the UniDock database was blocked by another browser context.',
+        'open-blocked',
+        'open'
+      ));
+    };
   });
 }

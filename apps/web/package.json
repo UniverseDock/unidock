@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:pwa": "node scripts/check-pwa.mjs",
-    "test": "pnpm run build && node --test test/backup.test.mjs",
+    "test": "pnpm run build && node --test test/backup.test.mjs test/content-lifecycle.test.mjs test/backup-restore.test.mjs",
+    "test:browser": "pnpm run build && node test/playwright-acceptance.mjs",
     "verify": "pnpm run test && pnpm run check:pwa"
   },
   "dependencies": {

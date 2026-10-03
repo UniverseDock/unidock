@@ -52,6 +52,16 @@
         const storage = await adapter.create();
         storages.push(storage);
         const records = storage.collection('records-test');
+        const schemaVersion = await new Promise((resolve, reject) => {
+          const request = indexedDB.open(databaseName);
+          request.onsuccess = () => {
+            const version = request.result.version;
+            request.result.close();
+            resolve(version);
+          };
+          request.onerror = () => reject(request.error ?? new Error('Schema version check failed.'));
+        });
+        assert(schemaVersion === 1, `Unexpected IndexedDB schema version: ${schemaVersion}.`);
 
         mark('validation');
         try {

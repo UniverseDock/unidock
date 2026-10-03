@@ -13,6 +13,9 @@ export interface StorageCollection<T extends StorageRecord = StorageRecord> {
   get(id: string): Promise<T | undefined>;
   put(record: T): Promise<void>;
   delete(id: string): Promise<void>;
+  /**
+   * List records in ascending lexicographic id order after filtering.
+   */
   list(query?: StorageQuery): Promise<T[]>;
   clear(): Promise<void>;
 }

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>UniDock storage error tests</title></head>
+  <body><pre id="result">running</pre>
+    <script type="module">
+      const result = document.querySelector('#result');
+      let stage = 'starting';
+      const uncaught = [];
+      addEventListener('unhandledrejection', (event) => uncaught.push(String(event.reason)));
+      addEventListener('error', (event) => uncaught.push(event.message));
+      const timeout = setTimeout(() => {
+        result.textContent = `result: FAIL: timeout at ${stage}`;
+      }, 10000);
+      const databaseName = `unidock-storage-errors-${Date.now()}`;
+      const fail = (message) => { throw new Error(message); };
+      const expectCode = async (promise, code) => {
+        try { await promise; fail(`expected ${code}`); }
+        catch (error) {
+          if (error.code !== code) fail(`expected ${code}, got ${error.code}`);
+          if (!error.cause) fail('missing cause');
+        }
+      };
+
+      try {
+        const { IndexedDBAdapter, IndexedDBStorage } = await import('../dist/index.js');
+        stage = 'open';
+        const adapter = new IndexedDBAdapter({ databaseName });
+        const storage = await adapter.create();
+        const collection = storage.collection('errors');
+
+        storage.close();
+        stage = 'closed';
+        await expectCode(collection.get('closed'), 'closed');
+
+        const open = await new IndexedDBAdapter({
+          databaseName: `${databaseName}-clone`
+        }).create();
+        stage = 'clone';
+        await expectCode(
+          open.collection('errors').put({ id: 'clone', value: () => {} }),
+          'request-failed'
+        );
+        open.close();
+
+        const versionDatabaseName = `${databaseName}-version`;
+        const versionStorage = await new IndexedDBAdapter({ databaseName: versionDatabaseName }).create();
+        stage = 'upgrade';
+        const upgradeRequest = indexedDB.open(versionDatabaseName, 2);
+        upgradeRequest.onupgradeneeded = () => upgradeRequest.result.createObjectStore('y');
+        await new Promise((resolve, reject) => {
+          upgradeRequest.onsuccess = () => {
+            upgradeRequest.result.close();
+            resolve();
+          };
+          upgradeRequest.onerror = () => reject(upgradeRequest.error);
+        });
+        await expectCode(
+          new IndexedDBAdapter({ databaseName: versionDatabaseName }).create(),
+          'version-conflict'
+        );
+        await expectCode(versionStorage.collection('errors').get('id'), 'closed');
+        stage = 'abort';
+
+        const raw = await new Promise((resolve, reject) => {
+          const request = indexedDB.open(databaseName);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        // Real native transaction; abort after a successful request so the
+        // transaction failure (rather than a pending request AbortError) wins.
+        const aborted = new IndexedDBStorage({
+          transaction(...args) {
+            const transaction = raw.transaction(...args);
+            queueMicrotask(() => transaction.abort());
+            return transaction;
+          }
+        });
+        await expectCode(aborted.collection('errors').clear(), 'transaction-failed');
+        stage = 'request';
+
+        // Real ConstraintError request: substitute add for put on a duplicate key.
+        await new IndexedDBStorage(raw).collection('errors').put({ id: 'duplicate' });
+        const failingRequest = new IndexedDBStorage({
+          transaction(...args) {
+            const transaction = raw.transaction(...args);
+            const original = transaction.objectStore.bind(transaction);
+            transaction.objectStore = (name) => {
+              const store = original(name);
+              store.put = store.add.bind(store);
+              return store;
+            };
+            return transaction;
+          }
+        });
+        await expectCode(failingRequest.collection('errors').put({ id: 'duplicate' }), 'request-failed');
+        stage = 'quota';
+
+        // Explicit quota fault injection; never fill the disk.
+        const quota = new DOMException('injected quota', 'QuotaExceededError');
+        await expectCode(new IndexedDBStorage({
+          transaction() { throw quota; }
+        }).collection('errors').put({ id: 'quota' }), 'quota-exceeded');
+        stage = 'blocked';
+
+        // Explicit blocked/late-success factory injection.
+        let lateClosed = false;
+        try {
+          await new IndexedDBAdapter({ indexedDB: {
+            open() {
+              const request = {};
+              queueMicrotask(() => {
+                request.onblocked();
+                request.result = { close() { lateClosed = true; } };
+                request.onsuccess();
+              });
+              return request;
+            }
+          } }).create();
+          fail('expected blocked');
+        } catch (error) {
+          if (error.code !== 'open-blocked') throw error;
+        }
+        if (!lateClosed) fail('late connection leaked');
+        raw.close();
+        for (const name of [databaseName, `${databaseName}-clone`, versionDatabaseName]) {
+          await new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(name);
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+            request.onblocked = () => reject(new Error('cleanup blocked'));
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        if (uncaught.length) fail(`uncaught: ${uncaught.join('; ')}`);
+        clearTimeout(timeout);
+        result.textContent = 'result: PASS';
+      } catch (error) {
+        clearTimeout(timeout);
+        result.textContent = `result: FAIL: ${error.code ?? error.name}: ${error.message}`;
+      }
+    </script>
+  </body>
+</html>
