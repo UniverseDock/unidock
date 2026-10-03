@@ -1,0 +1,22 @@
+#EXTM3U
+# A comment before the first channel
+#EXTINF:-1 tvg-logo="https://cdn.example/logo.png" group-title="News" tvg-language="en" tvg-country="US", Example News
+https://stream.example/news.m3u8
+
+#EXTINF:-1 group-title="Music", Example Music
+https://stream.example/music
+
+#EXTINF:-1, Duplicate News
+https://stream.example/news.m3u8
+
+#EXTINF:-1 group-title="Broken",
+javascript:alert(1)
+
+#EXTINF:-1
+https://stream.example/unnamed
+
+#EXTINF:-1, Missing URL
+# This comment does not count as a URL
+
+#EXTINF:-1, Last Channel
+https://stream.example/last
