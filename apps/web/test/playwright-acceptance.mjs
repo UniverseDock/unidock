@@ -80,6 +80,16 @@ async function runWeb(page, baseUrl) {
   await text(page, '#reader-state', '已读');
   await page.locator('#toggle-starred').click();
   await text(page, '#reader-state', '已收藏');
+  await page.locator('#back-to-list').click();
+  await text(page, '#content-list', '已读');
+  await text(page, '#content-list', '已收藏');
+  await page.locator('#content-status-filter').selectOption('starred');
+  await text(page, '#content-list', title);
+  await page.locator('#content-search').fill('does-not-match');
+  await page.waitForFunction(() =>
+    document.querySelector('#content-list')?.textContent === ''
+  );
+  await page.locator('#content-search').fill(title);
   await page.reload();
   await text(page, '#content-list', title);
   await openContent(page);

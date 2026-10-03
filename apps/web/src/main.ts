@@ -38,6 +38,8 @@ const formError = getElement<HTMLElement>('form-error');
 const listError = getElement<HTMLElement>('list-error');
 const connectionStatus = getElement<HTMLElement>('connection-status');
 const storageRetry = getElement<HTMLButtonElement>('storage-retry');
+const contentSearch = getElement<HTMLInputElement>('content-search');
+const contentStatusFilter = getElement<HTMLSelectElement>('content-status-filter');
 const readerPanel = getElement<HTMLElement>('reader-panel');
 const readerTitle = getElement<HTMLElement>('reader-title');
 const readerDocument = getElement<HTMLElement>('reader-document');
@@ -364,6 +366,14 @@ form.addEventListener('submit', (event) => {
   void saveContent();
 });
 
+contentSearch.addEventListener('input', () => {
+  void renderContents();
+});
+
+contentStatusFilter.addEventListener('change', () => {
+  void renderContents();
+});
+
 exportDataButton.addEventListener('click', () => {
   void exportData();
 });
@@ -615,16 +625,27 @@ async function removeContent(contentId: string): Promise<void> {
 }
 
 async function renderContents(): Promise<void> {
-  if (!repository) return;
+  if (!repository || !stateRepository) return;
   hideError(listError);
   loading.hidden = false;
   emptyState.hidden = true;
 
   try {
     const contents = await repository.list();
-    list.replaceChildren(...contents.map(renderContent));
-    count.textContent = `${contents.length} 条`;
-    emptyState.hidden = contents.length !== 0;
+    const states = await Promise.all(contents.map(async (content) => [
+      content.id,
+      await stateRepository?.get(content.id)
+    ] as const));
+    const stateByContentId = new Map(states);
+    const filtered = contents.filter((content) => {
+      const state = stateByContentId.get(content.id);
+      return matchesContentSearch(content) && matchesContentStatus(state);
+    });
+    list.replaceChildren(...filtered.map((content) =>
+      renderContent(content, stateByContentId.get(content.id))
+    ));
+    count.textContent = `${filtered.length} / ${contents.length} 条`;
+    emptyState.hidden = filtered.length !== 0;
   } catch (error) {
     showError(listError, toErrorMessage(error));
   } finally {
@@ -632,7 +653,7 @@ async function renderContents(): Promise<void> {
   }
 }
 
-function renderContent(content: Content): HTMLLIElement {
+function renderContent(content: Content, state: ReadingState | undefined): HTMLLIElement {
   const item = document.createElement('li');
   item.className = 'content-item';
 
@@ -642,7 +663,13 @@ function renderContent(content: Content): HTMLLIElement {
   const metadata = document.createElement('p');
   metadata.className = 'content-meta';
   metadata.textContent = [content.sourceId, content.tags?.join(' · ')].filter(Boolean).join(' · ') || '无来源信息';
-  details.append(title, metadata);
+  const status = document.createElement('p');
+  status.className = 'content-meta';
+  status.textContent = [
+    state?.read ? '已读' : '未读',
+    state?.starred ? '已收藏' : '未收藏'
+  ].join(' · ');
+  details.append(title, metadata, status);
 
   const actions = document.createElement('div');
   actions.className = 'content-actions';
@@ -664,6 +691,27 @@ function renderContent(content: Content): HTMLLIElement {
   actions.append(openButton, deleteButton);
   item.append(details, actions);
   return item;
+}
+
+function matchesContentSearch(content: Content): boolean {
+  const search = contentSearch.value.trim().toLocaleLowerCase();
+  if (!search) return true;
+  return [content.title, content.sourceId, ...(content.tags ?? [])]
+    .filter((value): value is string => Boolean(value))
+    .some((value) => value.toLocaleLowerCase().includes(search));
+}
+
+function matchesContentStatus(state: ReadingState | undefined): boolean {
+  switch (contentStatusFilter.value) {
+    case 'read':
+      return state?.read === true;
+    case 'unread':
+      return state?.read !== true;
+    case 'starred':
+      return state?.starred === true;
+    default:
+      return true;
+  }
 }
 
 async function openContent(contentId: string): Promise<void> {

@@ -112,6 +112,21 @@
           </div>
           <span id="content-count" class="muted">0 条</span>
         </div>
+        <div class="content-filters">
+          <label>
+            搜索
+            <input id="content-search" type="search" placeholder="标题、来源或标签">
+          </label>
+          <label>
+            状态
+            <select id="content-status-filter">
+              <option value="all">全部</option>
+              <option value="unread">未读</option>
+              <option value="read">已读</option>
+              <option value="starred">已收藏</option>
+            </select>
+          </label>
+        </div>
         <p id="loading" class="muted">正在读取本地内容…</p>
         <p id="empty-state" class="empty" hidden>还没有本地内容，先添加一条吧。</p>
         <ul id="content-list" class="content-list"></ul>
