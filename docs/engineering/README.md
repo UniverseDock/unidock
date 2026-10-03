@@ -8,3 +8,4 @@
 - [security.md](./security.md)：Web、内容和插件安全
 - [performance.md](./performance.md)：性能预算和基准
 - [pwa.md](./pwa.md)：PWA、离线、缓存和更新
+- [release-checklist.md](./release-checklist.md)：发布前环境和人工辅助检查
