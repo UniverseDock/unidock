@@ -600,7 +600,8 @@ article.extract
 
 ## 4.8 IPTV Plugin
 
-`plugins/iptv` 当前尚不存在，必须在 Reader/RSS 基础稳定后再开始。
+`plugins/iptv` 当前尚不存在。Reader/RSS 基础已稳定，当前先完成
+`docs/architecture/iptv-architecture.md` 中的领域边界和准入条件，再决定是否创建运行时代码。
 
 目标链路：
 

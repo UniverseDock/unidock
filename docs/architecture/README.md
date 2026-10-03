@@ -37,7 +37,7 @@ Service Worker
 - [storage-and-sync.md](./storage-and-sync.md)：Local First、存储、备份、迁移和同步边界
 - [plugin-system.md](./plugin-system.md)：Plugin、Capability、Permission 和安全准入
 - [command-event.md](./command-event.md)：Command、Event、Job、Pipeline 和 Agent 的边界
+- [iptv-architecture.md](./iptv-architecture.md)：IPTV、Channel 和 Player Capability 的准入边界
 - [evolution.md](./evolution.md)：当前问题、下一阶段和长期演进门槛
 
 工程约束见 [`../engineering/`](../engineering/)，决策规则见 [`../agent/decision-framework.md`](../agent/decision-framework.md)。
-
